@@ -60,7 +60,7 @@ GpuWorkers().run_workers(worker_num=8, gpu_num=4)
 这时候web server的cpu资源往往会成为性能瓶颈，于是我们也提供了多web server搭配（单个或多个）gpu worker的模式。
 
 当你的web server都在同一台服务器时，你甚至不需要改动``streamer``的代码。
-只需跟任意python web server的部署一样，用``gunicorn``或``uwsgi``实现向代理和负载均衡。
+只需跟任意python web server的部署一样，用``gunicorn``或``uwsgi``实现反向代理和负载均衡。
 
 当你的web server/gpu worker不在同一台服务器时，改动也很简单：指定所有web server和gpu worker公用的唯一的redis地址
 
@@ -86,5 +86,5 @@ for i in range(200):
 # 先拿到所有future对象，再等待异步返回
 for future in xs:
     outputs = future.get()
-    print(x)
+    print(outputs)
 ```
