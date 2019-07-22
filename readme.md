@@ -13,8 +13,10 @@ outputs = model.predict(batch_inputs)
 
 ```python
 from service_streamer import ThreadedStreamer
+
 # 参数：predict函数、max_batch、max_latency
 streamer = ThreadedStreamer(model.predict, 64, 0.1)
+
 # 用streamer.predict(batch)替代model.predict(batch)
 streamer.predict(batch)
 ```
@@ -30,9 +32,8 @@ streamer.predict(batch)
 
 ```python
 from service_streamer import Streamer
-# 参数：predict函数、max_batch、max_latency
+
 streamer = Streamer(model.predict, 64, 0.1)
-# 用streamer.predict(batch)替代model.predict(batch)
 outputs = streamer.predict(batch)
 ```
 ``Streamer``默认采用redis进行进程间通信和排队，将大量的请求分配到多个GPU worker中处理。
