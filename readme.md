@@ -8,7 +8,7 @@ outputs = model.predict(batch_inputs)
 但是当我们搭起web service部署模型的时候，每个request是分散到来的，占不满model的batch_size。
 这样无法充分利用gpu的并行性能，导致web service的QPS也上不去。
 
-**ServiceStreamer**是一个中间件，将request排队成一个大的batch，在送进gpu。
+**ServiceStreamer**是一个中间件，将request排队成一个完整的batch，在送进gpu。
 牺牲一定的时延（默认最大0.1s），提升整体性能，极大提高GPU利用率。
 
 ```python
@@ -18,15 +18,15 @@ streamer = ThreadedStreamer(model.predict, 64, 0.1)
 # 用streamer.predict(batch)替代model.predict(batch)
 streamer.predict(batch)
 ```
-然后你的webserver需要开启多线程（或协程）即可。
+然后你的web server需要开启多线程（或协程）即可。
 
-短短几行代码，理论上可以实现```MaxBatch/BatchPerRequest```倍加速。 
+短短几行代码，理论上可以实现```batch_size/batch_per_request```倍加速。 
 
 # 分布式GPU worker
 
-上面的例子是在webserver进程中，开启子线程调用GPU，用线程间队列进行通信和排队。
+上面的例子是在web server进程中，开启子线程调用GPU，用线程间队列进行通信和排队。
 
-实际项目中Web Server的性能(QPS)远高于GPU模型的性能，所以我们支持一个webserver搭配多个GPU worker。
+实际项目中web server的性能(QPS)远高于GPU模型的性能，所以我们支持一个web server搭配多个GPU worker。
 
 ```python
 from service_streamer import Streamer
