@@ -33,9 +33,10 @@ from service_streamer import Streamer
 # 参数：predict函数、max_batch、max_latency
 streamer = Streamer(model.predict, 64, 0.1)
 # 用streamer.predict(batch)替代model.predict(batch)
-streamer.predict(batch)
+outputs = streamer.predict(batch)
 ```
-``Streamer``默认采用redis进行进程间通信和排队，将大量的请求分配到多个GPU worker中处理，再将batch predict的结果传回到webserver
+``Streamer``默认采用redis进行进程间通信和排队，将大量的请求分配到多个GPU worker中处理。
+再将模型batch predict的结果传回到对应的web server，并且返回到对应的http response。
 
 ```python
 from service_streamer import StreamWorker, GpuWorkerManager
@@ -69,24 +70,20 @@ streamer = Streamer(model.predict, 64, 0.1, redis_broker="172.22.22.22:3217")
 
 这样每个请求会负载均衡到每个web server中进行cpu预处理，然后均匀的分布到gpu worker中进行模型predict。
 
-# 底层API使用
+# 底层Future API使用
+如果你使用过任意concurrent库，应该对`future`不陌生。
+当你的使用场景不是web service，又想利用``service_streamer``进行排队或者分布式GPU计算，可以直接使用Future API。
 ```
-from ifluent_english.grammar_correctors.fairseq_generator.fairseq_generator import FairSeqGenerator
-from ifluent_english.service_streamer import ThreadedStreamer
-sentence = '''i am a chinse, but i am flunt in english. What the fuck. Nani?hello world.'''
-gen = FairSeqGenerator()
-s_gen = ThreadedStreamer(gen.correct, 64, 0.1)
-
-s = time.time()
+from ifluent_english.service_streamer import Streamer
+streamer = ThreadedStreamer(model.predict, 64, 0.1)
 
 xs = []
 for i in range(200):
-    future = s_gen.submit([["How", "are", "you", "?"], ["Fine", "."], ["Thank", "you", "."]])
+    future = streamer.submit([["How", "are", "you", "?"], ["Fine", "."], ["Thank", "you", "."]])
     xs.append(future)
 
 # 先拿到所有future对象，再等待异步返回
-
 for future in xs:
-    x = future.get()
+    outputs = future.get()
     print(x)
 ```
