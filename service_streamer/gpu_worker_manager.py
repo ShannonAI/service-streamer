@@ -14,7 +14,7 @@ class GpuWorkerManager(object):
         # define your gpu stream worker here
         print("gpu worker exits...")
 
-    def run_workers(self, worker_num, gpu_num):
+    def run_workers_forever(self, worker_num, gpu_num):
         procs = []
         for i in range(worker_num):
             p = Process(target=self.gpu_worker, args=(i, gpu_num,))

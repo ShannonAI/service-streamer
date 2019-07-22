@@ -24,11 +24,12 @@ streamer.predict(batch)
 
 短短几行代码，理论上可以实现```batch_size/batch_per_request```倍加速。 
 
-# 分布式GPU worker
+# 分布式
+## 分布式GPU worker
 
-上面的例子是在web server进程中，开启子线程调用GPU，用线程间队列进行通信和排队。
+上面的例子是在web server进程中，开启子线程作为GPU worker进行batch predict，用线程间队列进行通信和排队。
 
-实际项目中web server的性能(QPS)远高于GPU模型的性能，所以我们支持一个web server搭配多个GPU worker。
+实际项目中web server的性能(QPS)远高于GPU模型的性能，所以我们支持一个web server搭配多个GPU worker进程。
 
 ```python
 from service_streamer import Streamer
@@ -47,14 +48,15 @@ class GpuWorkers(GpuWorkerManager):
     @staticmethod
     def gpu_worker(index, gpu_num):
         os.environ["CUDA_VISIBLE_DEVICES"] = str(index % gpu_num)
-        corrector = StreamWorker(model.predict, 64, max_latency=0.1)
-        corrector.run()
+        streamer = StreamWorker(model.predict, 64, max_latency=0.1)
+        streamer.run_forever()
 
-GpuWorkers().run_workers(worker_num=8, gpu_num=4)
+if __name__ == "__main__":
+    GpuWorkers().run_workers(worker_num=8, gpu_num=4)
 ```
 我们还提供了简单的GPU worker管理脚本，如上定义，即可启动8个GPU worker，平均分散在4个GPU卡上。
 
-# 分布式web server
+## 分布式web server
 
 有时候，你的web server中需要进行一些cpu密集型计算，比如图像、文本预处理，再分配到gpu worker进入模型。
 这时候web server的cpu资源往往会成为性能瓶颈，于是我们也提供了多web server搭配（单个或多个）gpu worker的模式。

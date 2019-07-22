@@ -129,7 +129,7 @@ class _BaseStreamWorker(object):
         self._batch_size = batch_size
         self._max_latency = max_latency
 
-    def run(self):
+    def run_forever(self):
         print(self, "start working")
 
         while True:
@@ -185,7 +185,7 @@ class ThreadedStreamer(_BaseStreamer):
         self._input_queue = Queue()
         self._output_queue = Queue()
         self._worker = ThreadedWorker(predict_function, batch_size, max_latency, self._input_queue, self._output_queue)
-        self._worker_thread = threading.Thread(target=self._worker.run, name="thread_worker")
+        self._worker_thread = threading.Thread(target=self._worker.run_forever, name="thread_worker")
         self._worker_thread.daemon = True
         self._worker_thread.start()
         self._delay_setup()
