@@ -78,7 +78,7 @@ streamer = Streamer(model.predict, 64, 0.1, redis_broker="172.22.22.22:3217")
 当你的使用场景不是web service，又想利用``service_streamer``进行排队或者分布式GPU计算，可以直接使用Future API。
 ```
 from ifluent_english.service_streamer import Streamer
-streamer = ThreadedStreamer(model.predict, 64, 0.1)
+streamer = Streamer(model.predict, 64, 0.1)
 
 xs = []
 for i in range(200):
@@ -87,6 +87,6 @@ for i in range(200):
 
 # 先拿到所有future对象，再等待异步返回
 for future in xs:
-    outputs = future.get()
+    outputs = future.result()
     print(outputs)
 ```
