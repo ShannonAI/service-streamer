@@ -86,13 +86,14 @@ class _BaseStreamer(object):
         # request id in one task
         request_id = 0
         batch_pbar = tqdm(batch)
+
+        future = Future(task_id, request_id + len(batch_pbar), weakref.ref(self._future_cache))
+        self._future_cache[task_id] = future
+
         for model_input in batch_pbar:
             batch_pbar.set_description(f"sending_request: PID:{os.getpid()}  task_id:{task_id}  request_id: {request_id}")
             self._send_request(task_id, request_id, model_input)
             request_id += 1
-
-        future = Future(task_id, request_id, weakref.ref(self._future_cache))
-        self._future_cache[task_id] = future
 
         return task_id
 
