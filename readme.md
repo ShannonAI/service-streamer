@@ -63,6 +63,7 @@ streamer.predict(batch)
 短短几行代码，理论上可以实现```batch_size/batch_per_request```倍加速。 
 
 <h2 align="center">API</h2>
+
 ### 分布式
 #### 分布式GPU worker
 

@@ -9,6 +9,7 @@ import json
 import time
 import threading
 import weakref
+from tqdm import tqdm
 
 
 class Future(object):
@@ -20,6 +21,9 @@ class Future(object):
         self._finish_event = threading.Event()
 
     def result(self, timeout=None):
+        if self._size == 0:
+            self._finish_event.set()
+            return []
         finished = self._finish_event.wait(timeout)
 
         if not finished:
@@ -81,11 +85,10 @@ class _BaseStreamer(object):
         self._task_id += 1
         # request id in one task
         request_id = 0
-
-        for model_input in batch:
+        batch_pbar = tqdm(batch)
+        for model_input in batch_pbar:
+            batch_pbar.set_description(f"sending_request: PID:{os.getpid()}  task_id:{task_id}  request_id: {request_id}")
             self._send_request(task_id, request_id, model_input)
-            print("_send_request", os.getpid(), task_id, request_id)
-            print("enqueue", os.getpid(), task_id, request_id)
             request_id += 1
 
         future = Future(task_id, request_id, weakref.ref(self._future_cache))
