@@ -40,31 +40,33 @@ pip install service_streamer
 
 <h2 align="center">Getting Started</h2>
 通常深度学习的inference按batch输入会比较快
+
 ```python
 outputs = model.predict(batch_inputs)
 ```
-但是当我们搭起web service部署模型的时候，每个request是分散到来的，占不满model的batch_size。
-这样无法充分利用gpu的并行性能，导致web service的QPS也上不去。
 
-**ServiceStreamer**是一个中间件，将request排队成一个完整的batch，在送进gpu。
+但是当我们搭起web service部署模型的时候，每个request是分散到来的，占不满model的batch_size。
+这样无法充分利用GPU的并行性能，导致web service的QPS也上不去。
+
+**ServiceStreamer**是一个中间件，将request排队成一个完整的batch，在送进GPU。
 牺牲一定的时延（默认最大0.1s），提升整体性能，极大提高GPU利用率。
 
 ```python
 from service_streamer import ThreadedStreamer
 
-# 参数：predict函数、max_batch、max_latency
-streamer = ThreadedStreamer(model.predict, 64, 0.1)
+# 用Streamer封装batch_predict函数
+streamer = ThreadedStreamer(model.predict, batch_size=64, max_latency=0.1)
 
-# 用streamer.predict(batch)替代model.predict(batch)
-streamer.predict(batch)
+# 用streamer.predict替代model.predict
+outpus = streamer.predict(batch_inputs)
 ```
+
 然后你的web server需要开启多线程（或协程）即可。
 
 短短几行代码，理论上可以实现```batch_size/batch_per_request```倍加速。 
 
-<h2 align="center">API</h2>
+<h2 align="center">分布式</h2>
 
-### 分布式
 #### 分布式GPU worker
 
 上面的例子是在web server进程中，开启子线程作为GPU worker进行batch predict，用线程间队列进行通信和排队。
@@ -108,7 +110,7 @@ if __name__ == "__main__":
 
 ```python
 # todo
-streamer = Streamer(model.predict, 64, 0.1, redis_broker="172.22.22.22:3217")
+streamer = Streamer(model.predict, 64, 0.1, redis_broker="172.22.22.22:6379")
 ```
 
 这样每个请求会负载均衡到每个web server中进行cpu预处理，然后均匀的分布到gpu worker中进行模型predict。
