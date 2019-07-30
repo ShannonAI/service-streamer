@@ -134,3 +134,22 @@ for future in xs:
 ```
 
 <h2 align="center">Benchmark</h2>
+
+### how to benchmark
+We use [wrk](https://github.com/wg/wrk) to do benchmark
+```shell
+# start flask threaded server
+python example/flask_example.py
+
+# benchmark naive api without service_streamer
+./wrk -t 4 -c 64 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/naive
+# benchmark stream api with service_streamer
+./wrk -t 4 -c 64 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+```
+
+### single gpu worker
+
+| |Naive|ThreaedStreamer|Streamer|RedisStreamer
+|-|-|-|-|-|
+| qps | 12.78 | 151.96 |  | |
+| latency  | 186.92ms | 112.68ms |  |  | |
