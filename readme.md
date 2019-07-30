@@ -28,7 +28,7 @@ ServiceStreamer是一个中间件，将request排队成一个完整的batch，�
 
 - :hatching_chick: **简单易用**: 添加两三行代码即可跑起来。
 - :zap: **处理速度快**: 低延迟，专门针对速度做了优化。见 [benchmark](#zap-benchmark).
-- :octopus: **可扩展性好**: 可轻松扩展到多GPU，大量请求。见 [benchmark](#speed-wrt-num_client).
+- :octopus: **可扩展性好**: 可轻松扩展到多GPU，大量请求。见 [分布式](#分布式).
 - :gem: **可靠性强**: 在大量数据集和模型上测试没有发现错误和异常。
 
 <h2 align="center">Install</h2>
