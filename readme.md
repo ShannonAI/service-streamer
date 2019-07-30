@@ -83,14 +83,14 @@ outputs = streamer.predict(batch)
 再将模型batch predict的结果传回到对应的web server，并且返回到对应的http response。
 
 ```python
-from service_streamer import StreamWorker, GpuWorkerManager
+from service_streamer import RedisWorker, GpuWorkerManager
 
 class GpuWorkers(GpuWorkerManager):
 
     @staticmethod
     def gpu_worker(index, gpu_num):
         os.environ["CUDA_VISIBLE_DEVICES"] = str(index % gpu_num)
-        streamer = StreamWorker(model.predict, 64, max_latency=0.1)
+        streamer = RedisWorker(model.predict, 64, max_latency=0.1)
         streamer.run_forever()
 
 if __name__ == "__main__":
@@ -119,7 +119,7 @@ streamer = Streamer(model.predict, 64, 0.1, redis_broker="172.22.22.22:6379")
 如果你使用过任意concurrent库，应该对`future`不陌生。
 当你的使用场景不是web service，又想利用``service_streamer``进行排队或者分布式GPU计算，可以直接使用Future API。
 ```python
-from ifluent_english.service_streamer import Streamer
+from service_streamer import ThreadedStreamer as Streamer
 streamer = Streamer(model.predict, 64, 0.1)
 
 xs = []
