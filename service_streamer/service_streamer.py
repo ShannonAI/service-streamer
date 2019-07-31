@@ -91,7 +91,7 @@ class _BaseStreamer(object):
         self._future_cache[task_id] = future
 
         for model_input in batch:
-            print(f"sending_request: PID:{os.getpid()}  task_id:{task_id}  request_id: {request_id}")
+            # print(f"sending_request: PID:{os.getpid()}  task_id:{task_id}  request_id: {request_id}")
             self._send_request(task_id, request_id, model_input)
             request_id += 1
 
@@ -328,7 +328,7 @@ class RedisWorker(_BaseStreamWorker):
         super().run_forever()
 
     def _loop_recv_request(self):
-        print(self, "start loop_recv_request")
+        print("[gpu worker %d] start loop_recv_request" % (os.getpid()))
         while True:
             message = self._redis.recv_request(1)
             if message:
@@ -350,16 +350,20 @@ class RedisWorker(_BaseStreamWorker):
         self._redis.send_response(client_id, task_id, request_id, model_output)
 
 
+def _setup_redis_worker_and_runforever(model_class, batch_size, max_latency, gpu_id):
+    redis_worker = RedisWorker(model_class, batch_size, max_latency)
+    redis_worker.run_forever(gpu_id)
+
+
 def run_redis_workers_forever(model_class, batch_size, max_latency=0.1, worker_num=1, cuda_devices=None):
     procs = []
     for i in range(worker_num):
         if cuda_devices is not None:
             gpu_id = cuda_devices[i % len(cuda_devices)]
-            args = (gpu_id,)
         else:
-            args = None
-        redis_worker = RedisWorker(model_class, batch_size, max_latency)
-        p = mp.Process(target=redis_worker.run_forever, args=args, name="stream_worker", daemon=True)
+            gpu_id = None
+        args = [model_class, batch_size, max_latency, gpu_id]
+        p = mp.Process(target=_setup_redis_worker_and_runforever, args=args, name="stream_worker", daemon=True)
         p.start()
         procs.append(p)
 

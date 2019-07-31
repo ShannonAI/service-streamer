@@ -27,14 +27,11 @@ def stream_predict():
 
 
 if __name__ == "__main__":
-    mp.freeze_support()
     # for ThreadedStreamer/Streamer
-    # mp.set_start_method("spawn", force=True)
-    # model = Model()
-    # streamer = ThreadedStreamer(model.predict, batch_size=64, max_latency=0.1)
+    mp.freeze_support()
+    mp.set_start_method("spawn", force=True)
+    model = Model()
+    streamer = ThreadedStreamer(model.predict, batch_size=64, max_latency=0.1)
     # streamer = Streamer(model.predict, batch_size=64, max_latency=0.1)
-
-    # for RedisStreamer
-    streamer = RedisStreamer()
 
     app.run(port=5005, threaded=True, debug=False)

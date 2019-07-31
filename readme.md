@@ -85,6 +85,39 @@ outputs = streamer.predict(batch)
 ``Streamer``默认采用``spawn``子进程运行gpu worker，利用进程间队列进行通信和排队，将大量的请求分配到多个worker中处理。
 再将模型batch predict的结果传回到对应的web server，并且返回到对应的http response。
 
+```
+Wed Jul 31 04:34:47 2019
++-----------------------------------------------------------------------------+
+| NVIDIA-SMI 390.116                Driver Version: 390.116                   |
+|-------------------------------+----------------------+----------------------+
+| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|===============================+======================+======================|
+|   0  TITAN Xp            Off  | 00000000:05:00.0  On |                  N/A |
+| 39%   57C    P2    60W / 250W |   2155MiB / 12195MiB |      0%      Default |
++-------------------------------+----------------------+----------------------+
+|   1  TITAN Xp            Off  | 00000000:06:00.0 Off |                  N/A |
+| 38%   63C    P2    62W / 250W |   1901MiB / 12196MiB |      0%      Default |
++-------------------------------+----------------------+----------------------+
+|   2  TITAN Xp            Off  | 00000000:09:00.0 Off |                  N/A |
+| 30%   48C    P2    70W / 250W |   1901MiB / 12196MiB |      0%      Default |
++-------------------------------+----------------------+----------------------+
+|   3  TITAN Xp            Off  | 00000000:0A:00.0 Off |                  N/A |
+| 26%   42C    P2    58W / 250W |   1901MiB / 12196MiB |      0%      Default |
++-------------------------------+----------------------+----------------------+
+
++-----------------------------------------------------------------------------+
+| Processes:                                                       GPU Memory |
+|  GPU       PID   Type   Process name                             Usage      |
+|=============================================================================|
+|    0      7574      C   /home/liuxin/nlp/venv/bin/python            1889MiB |
+|    1      7575      C   /home/liuxin/nlp/venv/bin/python            1889MiB |
+|    2      7576      C   /home/liuxin/nlp/venv/bin/python            1889MiB |
+|    3      7577      C   /home/liuxin/nlp/venv/bin/python            1889MiB |
++-----------------------------------------------------------------------------+
+
+```
+
 上面这种方式定义简单，但是主进程初始化模型，多占了一份显存，并且模型只能运行在同一块GPU上。
 所以我们提供了```ManagedModel```类，方便模型lazy初始化和迁移，以支持多GPU卡。
 
@@ -145,7 +178,7 @@ for future in xs:
 
 We use [wrk](https://github.com/wg/wrk) to do benchmark
 
-```shell
+```bash
 # start flask threaded server
 python example/flask_example.py
 
@@ -176,11 +209,15 @@ All the code and bench scripts are in [example](./example).
 这里对比单web server进程的情况下，多gpu worker的性能，验证通信和负载均衡机制的性能损耗。
 Flask多线程server已经成为性能瓶颈，故采用gevent server，代码参考[flask_multigpu_example.py](example/flask_multigpu_example.py)
 
+```bash
+./wrk -t 8 -c 512 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+```
+
 | gpu_worker_num | Naive | ThreadedStreamer |Streamer|RedisStreamer
 |-|-|-|-|-|
-|1|||362.69||
-|2|||458.86||
-|4|||426.60||
+|1|11.62|211.02|362.69|365.80|
+|2|N/A|N/A|488.40|609.63|
+|4|N/A|N/A|494.20|1034.57|
 
 *   ```ThreadedStreamer```由于Python GIL的限制，多worker并没有意义，仅测单gpu worker数据进行对比。
 *   ```Streamer```大于2个gpu worker时，性能提升并不是线性。这是由于flask的性能问题，server进程的cpu利用率达到100，此时瓶颈是cpu而不是gpu。
@@ -192,6 +229,6 @@ Flask多线程server已经成为性能瓶颈，故采用gevent server，代码�
 
 | gpu_worker_num | Batched | ThreadedStreamer |Streamer|RedisStreamer
 |-|-|-|-|-|
-|1|341.1|331.0|328.71||
-|2|N/A|N/A|590.62||
-|4|N/A|N/A|1051.3||
+|1|422.883|401.01|399.26|384.79|
+|2|N/A|N/A|742.16|714.781|
+|4|N/A|N/A|1400.12|1356.47|
