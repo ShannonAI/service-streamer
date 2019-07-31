@@ -166,4 +166,13 @@ All the code and bench scripts are in [example](./example).
 
 ### multiple gpu workers
 
-| |Naive|ThreaedStreamer|Streamer|RedisStreamer
+这里对比单web server进程的情况下，多gpu worker的性能，验证通信和负载均衡机制的性能损耗。
+```ThreadedStreamer```由于Python GIL的限制，多worker并没有什么意义，故没有实现。
+
+| gpu_worker_num |Streamer|RedisStreamer
+|-|-|-|
+|1|||
+|2|||
+|4|||
+
+
