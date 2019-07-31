@@ -1,14 +1,16 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/30
 
-from bert_model import Model
+from multiprocessing import freeze_support
 from flask import Flask, request, jsonify
-from service_streamer import ThreadedStreamer as Streamer
+# from service_streamer import ThreadedStreamer as Streamer
+from service_streamer import Streamer
+from bert_model import Model
 
 
 app = Flask(__name__)
-model = Model()
-streamer = Streamer(model.predict, batch_size=64, max_latency=0.1)
+model = None
+streamer = None
 
 
 @app.route("/naive", methods=["POST"])
@@ -26,4 +28,7 @@ def stream_predict():
 
 
 if __name__ == "__main__":
-    app.run(port=5005, threaded=True)
+    freeze_support()
+    model = Model()
+    streamer = Streamer(model.predict, batch_size=64, max_latency=0.1)
+    app.run(port=5005, threaded=True, debug=False)

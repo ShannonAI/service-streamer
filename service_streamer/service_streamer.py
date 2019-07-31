@@ -226,29 +226,25 @@ class ThreadedWorker(_BaseStreamWorker):
 
 
 class Streamer(_BaseStreamer):
-    def __init__(self, predict_function, batch_size, max_latency=0.1, worker_num=1, cuda_devices=None, model=None):
+    def __init__(self, predict_function, batch_size, max_latency=0.1, worker_num=1, cuda_devices=None):
         super().__init__()
         self.worker_num = worker_num
         self.cuda_devices = cuda_devices
-        self._model = model
         self._input_queue = mp.Queue()
         self._output_queue = mp.Queue()
-        self._worker = StreamWorker(predict_function, batch_size, max_latency, self._input_queue, self._output_queue, self._model)
+        self._worker = StreamWorker(predict_function, batch_size, max_latency, self._input_queue, self._output_queue)
         self._worker_ps = []
         self._setup_gpu_worker()
         self._delay_setup()
 
     def _setup_gpu_worker(self):
-        original = os.environ.get("CUDA_VISIBLE_DEVICES", "")
         for i in range(self.worker_num):
             if self.cuda_devices is not None:
                 devices = str(self.cuda_devices[i % len(self.cuda_devices)])
                 print(devices)
-                os.environ["CUDA_VISIBLE_DEVICES"] = devices
             p = mp.Process(target=self._worker.run_forever, name="stream_worker", daemon=True)
             p.start()
             self._worker_ps.append(p)
-        os.environ["CUDA_VISIBLE_DEVICES"] = original
 
     def _send_request(self, task_id, request_id, model_input):
         self._input_queue.put((0, task_id, request_id, model_input))
@@ -262,15 +258,12 @@ class Streamer(_BaseStreamer):
 
 
 class StreamWorker(_BaseStreamWorker):
-    def __init__(self, predict_function, batch_size, max_latency, request_queue, response_queue, model):
+    def __init__(self, predict_function, batch_size, max_latency, request_queue, response_queue):
         super().__init__(predict_function, batch_size, max_latency)
         self._request_queue = request_queue
         self._response_queue = response_queue
-        self._model = model
 
     def run_forever(self):
-        print("gpu:", os.environ.get("CUDA_VISIBLE_DEVICES"))
-        self._model.to("cuda")
         super().run_forever()
 
     def _recv_request(self, timeout=1):

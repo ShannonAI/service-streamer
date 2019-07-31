@@ -27,7 +27,7 @@ ServiceStreamer是一个中间件，将request排队成一个完整的batch，�
 <h2 align="center">Highlights</h2>
 
 - :hatching_chick: **简单易用**: 添加两三行代码即可跑起来。
-- :zap: **处理速度快**: 低延迟，专门针对速度做了优化。见 [benchmark](#zap-benchmark).
+- :zap: **处理速度快**: 低延迟，专门针对速度做了优化。见 [benchmark](#Benchmark).
 - :octopus: **可扩展性好**: 可轻松扩展到多GPU，大量请求。见 [分布式](#分布式).
 - :gem: **可靠性强**: 在大量数据集和模型上测试没有发现错误和异常。
 
@@ -38,6 +38,10 @@ ServiceStreamer是一个中间件，将request排队成一个完整的batch，�
 pip install service_streamer 
 ```
 
+<h2 align="center">Example</h2>
+我们提供了一个完整的[example](./example)，利用PyTorch实现的Bert预测下一个词的服务。
+并且针对这个example做了性能[benchmark](#Benchmark)。
+
 <h2 align="center">Getting Started</h2>
 通常深度学习的inference按batch输入会比较快
 
@@ -45,10 +49,7 @@ pip install service_streamer
 outputs = model.predict(batch_inputs)
 ```
 
-但是当我们搭起web service部署模型的时候，每个request是分散到来的，占不满model的batch_size。
-这样无法充分利用GPU的并行性能，导致web service的QPS也上不去。
-
-**ServiceStreamer**是一个中间件，将request排队成一个完整的batch，在送进GPU。
+用**ServiceStreamer**中间件封装```predict```函数，将request排队成一个完整的batch，再送进GPU。
 牺牲一定的时延（默认最大0.1s），提升整体性能，极大提高GPU利用率。
 
 ```python
@@ -63,7 +64,7 @@ outpus = streamer.predict(batch_inputs)
 
 然后你的web server需要开启多线程（或协程）即可。
 
-短短几行代码，理论上可以实现```batch_size/batch_per_request```倍加速。 
+短短几行代码，通常可以实现数十(```batch_size/batch_per_request```)倍的加速。 
 
 <h2 align="center">分布式</h2>
 
@@ -142,14 +143,27 @@ We use [wrk](https://github.com/wg/wrk) to do benchmark
 python example/flask_example.py
 
 # benchmark naive api without service_streamer
-./wrk -t 4 -c 64 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/naive
+./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/naive
 # benchmark stream api with service_streamer
-./wrk -t 4 -c 64 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
 ```
+
+All the code and bench scripts are in [example](./example).
+
+### environment
+
+*   cpu: 
+*   gpu: Titan Xp
+*   cuda: 9.0
+*   pytorch: 1.1   
 
 ### single gpu worker
 
 | |Naive|ThreaedStreamer|Streamer|RedisStreamer
 |-|-|-|-|-|
-| qps | 12.78 | 151.96 |  | |
-| latency  | 186.92ms | 112.68ms |  |  | |
+| qps | 12.78 | 186.44 | 273.07 | |
+| latency  | 8440ms | 669.58ms | 462.14ms |  | |
+
+### multiple gpu workers
+
+| |Naive|ThreaedStreamer|Streamer|RedisStreamer
