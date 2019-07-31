@@ -2,26 +2,29 @@
 # Created by Meteorix at 2019/7/22
 
 import time
-import os
+import multiprocessing as mp
 from tqdm import tqdm
-from service_streamer import ThreadedStreamer, Streamer
-from service_streamer import RedisWorker, GpuWorkerManager
+from service_streamer import ThreadedStreamer, Streamer, ManagedModel
 from bert_model import Model
 
 
+class ManagedBertModel(ManagedModel):
+
+    def init_model(self):
+        self.model = Model()
+
+    def predict(self, batch):
+        return self.model.predict(batch)
+
+
 def main():
-    max_batch = 128
+    max_batch = 64
     model = Model()
     text = "Who was Jim Henson ? Jim Henson was a puppeteer"
-    streamer = Streamer(model.predict, batch_size=max_batch, max_latency=0.1, worker_num=4, cuda_devices=(0, 1, 2, 3), model=model)
-    # streamer = ThreadedStreamer(model.predict, batch_size=max_batch, max_latency=0.1)
-    num_times =13000
+    # streamer = Streamer(ManagedBertModel, batch_size=max_batch, max_latency=0.1, worker_num=1, cuda_devices=(0, 1, 2, 3))
+    streamer = ThreadedStreamer(model.predict, batch_size=max_batch, max_latency=0.1)
+    num_times = 3000
 
-    class GpuWorkers(GpuWorkerManager):
-
-        def gpu_worker(self, index, gpu_num):
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(index % gpu_num)
-            RedisWorker(model.predict, 64, max_latency=0.1).run_forever()
 
     """
     t_start = time.time()
@@ -30,14 +33,13 @@ def main():
     t_end = time.time()
     print('model prediction time', t_end - t_start)
     """
-    model.bert.to("cuda")
     t_start = time.time()
     inputs = [text] * num_times
     for i in tqdm(range(num_times // max_batch + 1)):
         output = model.predict(inputs[i*max_batch:(i+1)*max_batch])
         print(len(output))
     t_end = time.time()
-    print('model batch prediction time', t_end - t_start)
+    print('[batched]sentences per second', num_times / (t_end - t_start))
 
     t_start = time.time()
     xs = []
@@ -48,12 +50,13 @@ def main():
     for future in tqdm(xs):  # 先拿到所有future对象，再等待异步返回
         output = future.result(timeout=20)
     t_end = time.time()
-    print('streamer prediction time', t_end - t_start)
+    print('[streamed]sentences per second', num_times / (t_end - t_start))
 
     # streamer._worker_process.join()
     # GpuWorkers().run_workers_forever(worker_num=8, gpu_num=4)
 
 
 if __name__ == '__main__':
+    mp.freeze_support()
     main()
 

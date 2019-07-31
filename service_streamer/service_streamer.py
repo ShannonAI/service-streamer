@@ -10,6 +10,9 @@ import time
 import threading
 import multiprocessing as mp
 import weakref
+from .managed_model import ManagedModel
+
+
 mp.set_start_method("spawn", force=True)
 
 
@@ -226,13 +229,13 @@ class ThreadedWorker(_BaseStreamWorker):
 
 
 class Streamer(_BaseStreamer):
-    def __init__(self, predict_function, batch_size, max_latency=0.1, worker_num=1, cuda_devices=None):
+    def __init__(self, predict_function_or_model, batch_size, max_latency=0.1, worker_num=1, cuda_devices=None):
         super().__init__()
         self.worker_num = worker_num
         self.cuda_devices = cuda_devices
         self._input_queue = mp.Queue()
         self._output_queue = mp.Queue()
-        self._worker = StreamWorker(predict_function, batch_size, max_latency, self._input_queue, self._output_queue)
+        self._worker = StreamWorker(predict_function_or_model, batch_size, max_latency, self._input_queue, self._output_queue)
         self._worker_ps = []
         self._setup_gpu_worker()
         self._delay_setup()
@@ -240,9 +243,11 @@ class Streamer(_BaseStreamer):
     def _setup_gpu_worker(self):
         for i in range(self.worker_num):
             if self.cuda_devices is not None:
-                devices = str(self.cuda_devices[i % len(self.cuda_devices)])
-                print(devices)
-            p = mp.Process(target=self._worker.run_forever, name="stream_worker", daemon=True)
+                gpu_id = self.cuda_devices[i % len(self.cuda_devices)]
+                args = (gpu_id,)
+            else:
+                args = None
+            p = mp.Process(target=self._worker.run_forever, args=args, name="stream_worker", daemon=True)
             p.start()
             self._worker_ps.append(p)
 
@@ -258,12 +263,19 @@ class Streamer(_BaseStreamer):
 
 
 class StreamWorker(_BaseStreamWorker):
-    def __init__(self, predict_function, batch_size, max_latency, request_queue, response_queue):
-        super().__init__(predict_function, batch_size, max_latency)
+    def __init__(self, predict_function_or_model, batch_size, max_latency, request_queue, response_queue):
+        super().__init__(predict_function_or_model, batch_size, max_latency)
         self._request_queue = request_queue
         self._response_queue = response_queue
 
-    def run_forever(self):
+    def run_forever(self, gpu_id=None):
+        # if it is a managed model, lazy init model after forked & set CUDA_VISIBLE_DEVICES
+        if isinstance(self._predict, type) and issubclass(self._predict, ManagedModel):
+            model_class = self._predict
+            print("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
+            self._model = model_class(gpu_id)
+            self._model.init_model()
+            self._predict = self._model.predict
         super().run_forever()
 
     def _recv_request(self, timeout=1):

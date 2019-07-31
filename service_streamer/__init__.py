@@ -2,4 +2,4 @@
 # Created by Meteorix at 2019/7/22
 
 from .service_streamer import ThreadedStreamer, Streamer, RedisStreamer, RedisWorker
-from .gpu_worker_manager import GpuWorkerManager
+from .managed_model import ManagedModel, GpuWorkerManager
