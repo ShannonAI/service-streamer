@@ -181,9 +181,10 @@ All the code and bench scripts are in [example](./example).
 *   ```Streamer```大于2个gpu worker时，性能提升并不是线性。
 这是由于flask的性能问题，server进程的cpu利用率达到100，此时瓶颈是cpu而不是gpu。
 
-### multiple gpu workers low-level api
+### multiple gpu workers future api
 
-为了规避web server的性能瓶颈，我们使用low-level api本地测试多gpu worker的benchmark
+为了规避web server的性能瓶颈，我们使用[底层Future Api](#底层Future API使用)本地测试多gpu worker的benchmark，
+代码参考[future_example.py](example/future_example.py)
 
 | gpu_worker_num | Batched | ThreadedStreamer |Streamer|RedisStreamer
 |-|-|-|-|-|
