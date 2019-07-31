@@ -46,11 +46,7 @@ def main():
     t_end = time.time()
     print('[streamed]sentences per second', num_times / (t_end - t_start))
 
-    # streamer._worker_process.join()
-    # GpuWorkers().run_workers_forever(worker_num=8, gpu_num=4)
-
 
 if __name__ == '__main__':
     mp.freeze_support()
     main()
-

@@ -128,6 +128,7 @@ cpu资源往往会成为性能瓶颈，于是我们也提供了多web server搭�
 使用```RedisStreamer```指定所有web server和gpu worker公用的唯一的redis地址
 
 ```python
+# 默认参数可以省略，使用localhost:6379
 streamer = RedisStreamer(redis_broker="172.22.22.22:6379")
 ```
 
