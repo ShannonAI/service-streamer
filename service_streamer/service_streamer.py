@@ -243,7 +243,7 @@ class Streamer(_BaseStreamer):
                 gpu_id = self.cuda_devices[i % len(self.cuda_devices)]
                 args = (gpu_id,)
             else:
-                args = None
+                args = ()
             p = mp.Process(target=self._worker.run_forever, args=args, name="stream_worker", daemon=True)
             p.start()
             self._worker_ps.append(p)

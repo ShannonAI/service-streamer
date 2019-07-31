@@ -144,11 +144,15 @@ cpu资源往往会成为性能瓶颈，于是我们也提供了多web server搭�
 使用```RedisStreamer```指定所有web server和gpu worker公用的唯一的redis地址
 
 ```python
-# todo
-streamer = RedisStreamer(model.predict, 64, 0.1, redis_broker="172.22.22.22:6379")
+streamer = RedisStreamer(redis_broker="172.22.22.22:6379")
 ```
 
 然后跟任意python web server的部署一样，用``gunicorn``或``uwsgi``实现反向代理和负载均衡。
+
+```bash
+cd example
+gunicorn -c redis_streamer_gunicorn.py flask_example:app
+```
 
 这样每个请求会负载均衡到每个web server中进行cpu预处理，然后均匀的分布到gpu worker中进行模型predict。
 
@@ -178,16 +182,6 @@ for future in xs:
 
 We use [wrk](https://github.com/wg/wrk) to do benchmark
 
-```bash
-# start flask threaded server
-python example/flask_example.py
-
-# benchmark naive api without service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/naive
-# benchmark stream api with service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
-```
-
 All the code and bench scripts are in [example](./example).
 
 ### environment
@@ -199,10 +193,20 @@ All the code and bench scripts are in [example](./example).
 
 ### single gpu worker
 
+```bash
+# start flask threaded server
+python example/flask_example.py
+
+# benchmark naive api without service_streamer
+./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/naive
+# benchmark stream api with service_streamer
+./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+```
+
 | |Naive|ThreaedStreamer|Streamer|RedisStreamer
 |-|-|-|-|-|
-| qps | 12.78 | 186.44 | 273.07 | |
-| latency  | 8440ms | 669.58ms | 462.14ms |  | |
+| qps | 12.78 | 207.59 | 321.70 | 372.45 |
+| latency  | 8440ms | 603.35ms | 392.66ms | 340.74ms |
 
 ### multiple gpu workers
 

@@ -11,7 +11,7 @@ class ManagedModel(object):
         self.set_gpu_id(self.gpu_id)
 
     @staticmethod
-    def set_gpu_id(gpu_id):
+    def set_gpu_id(gpu_id=None):
         if gpu_id:
             os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
