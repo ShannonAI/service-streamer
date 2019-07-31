@@ -186,7 +186,7 @@ All the code and bench scripts are in [example](./example).
 为了规避web server的性能瓶颈，我们使用low-level api本地测试多gpu worker的benchmark
 
 | gpu_worker_num | Batched | ThreadedStreamer |Streamer|RedisStreamer
-|-|-|-|
+|-|-|-|-|-|
 |1|341.1|331.0|328.71||
 |2|N/A|N/A|590.62||
 |4|N/A|N/A|1051.3||
