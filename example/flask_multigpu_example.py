@@ -2,22 +2,14 @@
 # Created by Meteorix at 2019/7/30
 from gevent import monkey; monkey.patch_all()
 from flask import Flask, request, jsonify
-from service_streamer import ManagedModel, Streamer
-from bert_model import Model
+from service_streamer import Streamer
+from bert_model import ManagedBertModel
 
 
 app = Flask(__name__)
 model = None
 streamer = None
 
-
-class ManagedBertModel(ManagedModel):
-
-    def init_model(self):
-        self.model = Model()
-
-    def predict(self, batch):
-        return self.model.predict(batch)
 
 
 @app.route("/naive", methods=["POST"])

@@ -75,50 +75,55 @@ outpus = streamer.predict(batch_inputs)
 实际项目中web server的性能(QPS)远高于GPU模型的性能，所以我们支持一个web server搭配多个GPU worker进程。
 
 ```python
+import multiprocessing; multiprocessing.set_start_method("spawn", force=True)
 from service_streamer import Streamer
 
-streamer = Streamer(model.predict, 64, 0.1)
+# spawn出4个gpu worker进程
+streamer = Streamer(model.predict, 64, 0.1, worker_num=4)
 outputs = streamer.predict(batch)
 ```
-``Streamer``默认采用redis进行进程间通信和排队，将大量的请求分配到多个GPU worker中处理。
+``Streamer``默认采用``spawn``子进程运行gpu worker，利用进程间队列进行通信和排队，将大量的请求分配到多个worker中处理。
 再将模型batch predict的结果传回到对应的web server，并且返回到对应的http response。
 
+上面这种方式定义简单，但是主进程初始化模型，多占了一份显存，并且模型只能运行在同一块GPU上。
+所以我们提供了```ManagedModel```类，方便模型lazy初始化和迁移，以支持多GPU卡。
+
 ```python
-from service_streamer import RedisWorker, GpuWorkerManager
+class ManagedBertModel(ManagedModel):
 
-class GpuWorkers(GpuWorkerManager):
+    def init_model(self):
+        self.model = Model()
 
-    @staticmethod
-    def gpu_worker(index, gpu_num):
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(index % gpu_num)
-        streamer = RedisWorker(model.predict, 64, max_latency=0.1)
-        streamer.run_forever()
+    def predict(self, batch):
+        return self.model.predict(batch)
 
-if __name__ == "__main__":
-    GpuWorkers().run_workers(worker_num=8, gpu_num=4)
+
+# spawn出4个gpu worker进程，平均分散在0/1/2/3号GPU上
+streamer = Streamer(ManagedBertModel, 64, 0.1, worker_num=4, cuda_devices=(0, 1, 2, 3))
+outputs = streamer.predict(batch)
 ```
-我们还提供了简单的GPU worker管理脚本，如上定义，即可启动8个GPU worker，平均分散在4个GPU卡上。
 
 #### 分布式web server
 
 有时候，你的web server中需要进行一些cpu密集型计算，比如图像、文本预处理，再分配到gpu worker进入模型。
-这时候web server的cpu资源往往会成为性能瓶颈，于是我们也提供了多web server搭配（单个或多个）gpu worker的模式。
+cpu资源往往会成为性能瓶颈，于是我们也提供了多web server搭配（单个或多个）gpu worker的模式。
 
-当你的web server都在同一台服务器时，你甚至不需要改动``streamer``的代码。
-只需跟任意python web server的部署一样，用``gunicorn``或``uwsgi``实现反向代理和负载均衡。
-
-当你的web server/gpu worker不在同一台服务器时，改动也很简单：指定所有web server和gpu worker公用的唯一的redis地址
+使用```RedisStreamer```指定所有web server和gpu worker公用的唯一的redis地址
 
 ```python
 # todo
-streamer = Streamer(model.predict, 64, 0.1, redis_broker="172.22.22.22:6379")
+streamer = RedisStreamer(model.predict, 64, 0.1, redis_broker="172.22.22.22:6379")
 ```
+
+然后跟任意python web server的部署一样，用``gunicorn``或``uwsgi``实现反向代理和负载均衡。
 
 这样每个请求会负载均衡到每个web server中进行cpu预处理，然后均匀的分布到gpu worker中进行模型predict。
 
 ### 底层Future API使用
+
 如果你使用过任意concurrent库，应该对`future`不陌生。
 当你的使用场景不是web service，又想利用``service_streamer``进行排队或者分布式GPU计算，可以直接使用Future API。
+
 ```python
 from service_streamer import ThreadedStreamer as Streamer
 streamer = Streamer(model.predict, 64, 0.1)
@@ -169,7 +174,7 @@ All the code and bench scripts are in [example](./example).
 ### multiple gpu workers
 
 这里对比单web server进程的情况下，多gpu worker的性能，验证通信和负载均衡机制的性能损耗。
-*   Flask多线程server已经成为瓶颈，故采用gevent server，代码参考[flask_example_multigpu.py](example/flask_example_multigpu.py)
+Flask多线程server已经成为性能瓶颈，故采用gevent server，代码参考[flask_multigpu_example.py](example/flask_multigpu_example.py)
 
 | gpu_worker_num | Naive | ThreadedStreamer |Streamer|RedisStreamer
 |-|-|-|-|-|
@@ -178,8 +183,7 @@ All the code and bench scripts are in [example](./example).
 |4|||426.60||
 
 *   ```ThreadedStreamer```由于Python GIL的限制，多worker并没有意义，仅测单gpu worker数据进行对比。
-*   ```Streamer```大于2个gpu worker时，性能提升并不是线性。
-这是由于flask的性能问题，server进程的cpu利用率达到100，此时瓶颈是cpu而不是gpu。
+*   ```Streamer```大于2个gpu worker时，性能提升并不是线性。这是由于flask的性能问题，server进程的cpu利用率达到100，此时瓶颈是cpu而不是gpu。
 
 ### multiple gpu workers future api
 

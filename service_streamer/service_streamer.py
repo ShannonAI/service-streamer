@@ -13,9 +13,6 @@ import weakref
 from .managed_model import ManagedModel
 
 
-mp.set_start_method("spawn", force=True)
-
-
 class Future(object):
     def __init__(self, task_id, task_size, future_cache_ref):
         self._id = task_id
@@ -94,7 +91,7 @@ class _BaseStreamer(object):
         self._future_cache[task_id] = future
 
         for model_input in batch:
-            # print(f"sending_request: PID:{os.getpid()}  task_id:{task_id}  request_id: {request_id}")
+            print(f"sending_request: PID:{os.getpid()}  task_id:{task_id}  request_id: {request_id}")
             self._send_request(task_id, request_id, model_input)
             request_id += 1
 
@@ -310,14 +307,25 @@ class RedisStreamer(_BaseStreamer):
 
 
 class RedisWorker(_BaseStreamWorker):
-    def __init__(self, predict_function, batch_size, max_latency=0.1):
-        super().__init__(predict_function, batch_size, max_latency)
+    def __init__(self, model_class, batch_size, max_latency=0.1):
+        assert issubclass(model_class, ManagedModel)
+        super().__init__(model_class, batch_size, max_latency)
+
         self._redis = _RedisServer(0)
         self._requests_queue = Queue()
 
         self.back_thread = threading.Thread(target=self._loop_recv_request, name="thread_recv_request")
         self.back_thread.daemon = True
         self.back_thread.start()
+
+    def run_forever(self, gpu_id=None):
+        print("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
+        model_class = self._predict
+        self._model = model_class(gpu_id)
+        self._model.init_model()
+        self._predict = self._model.predict
+
+        super().run_forever()
 
     def _loop_recv_request(self):
         print(self, "start loop_recv_request")
@@ -340,6 +348,23 @@ class RedisWorker(_BaseStreamWorker):
 
     def _send_response(self, client_id, task_id, request_id, model_output):
         self._redis.send_response(client_id, task_id, request_id, model_output)
+
+
+def run_redis_workers_forever(model_class, batch_size, max_latency=0.1, worker_num=1, cuda_devices=None):
+    procs = []
+    for i in range(worker_num):
+        if cuda_devices is not None:
+            gpu_id = cuda_devices[i % len(cuda_devices)]
+            args = (gpu_id,)
+        else:
+            args = None
+        redis_worker = RedisWorker(model_class, batch_size, max_latency)
+        p = mp.Process(target=redis_worker.run_forever, args=args, name="stream_worker", daemon=True)
+        p.start()
+        procs.append(p)
+
+    for p in procs:
+        p.join()
 
 
 class _RedisAgent(object):
