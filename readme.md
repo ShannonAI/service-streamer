@@ -6,8 +6,9 @@
   <a href="#what-is-it">What is it</a> •
   <a href="#highlights">Highlights</a> •
   <a href="#install">Install</a> •
+  <a href="#example">Example</a> •
   <a href="#getting-started">Getting Started</a> •
-  <a href="#api">API</a> •
+  <a href="#future-api">Future API</a> •
   <a href="#benchmark">Benchmark</a> •
   
 </p>
@@ -27,7 +28,7 @@ ServiceStreamer是一个中间件，将request排队成一个完整的batch，�
 <h2 align="center">Highlights</h2>
 
 - :hatching_chick: **简单易用**: 添加两三行代码即可跑起来。
-- :zap: **处理速度快**: 低延迟，专门针对速度做了优化。见 [benchmark](#Benchmark).
+- :zap: **处理速度快**: 低延迟，专门针对速度做了优化。见 [benchmark](#benchmark).
 - :octopus: **可扩展性好**: 可轻松扩展到多GPU，大量请求。见 [分布式](#分布式).
 - :gem: **可靠性强**: 在大量数据集和模型上测试没有发现错误和异常。
 
@@ -40,7 +41,7 @@ pip install service_streamer
 
 <h2 align="center">Example</h2>
 我们提供了一个完整的[example](./example)，利用PyTorch实现的Bert预测下一个词的服务。
-并且针对这个example做了性能[benchmark](#Benchmark)。
+并且针对这个example做了性能[benchmark](#benchmark)。
 
 <h2 align="center">Getting Started</h2>
 通常深度学习的inference按batch输入会比较快
@@ -141,7 +142,7 @@ gunicorn -c redis_streamer_gunicorn.py flask_example:app
 
 这样每个请求会负载均衡到每个web server中进行cpu预处理，然后均匀的分布到gpu worker中进行模型predict。
 
-### 底层Future API使用
+### Future API
 
 如果你使用过任意concurrent库，应该对`future`不陌生。
 当你的使用场景不是web service，又想利用``service_streamer``进行排队或者分布式GPU计算，可以直接使用Future API。
