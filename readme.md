@@ -137,7 +137,9 @@ for future in xs:
 <h2 align="center">Benchmark</h2>
 
 ### how to benchmark
+
 We use [wrk](https://github.com/wg/wrk) to do benchmark
+
 ```shell
 # start flask threaded server
 python example/flask_example.py
@@ -170,10 +172,10 @@ All the code and bench scripts are in [example](./example).
 *   Flask多线程server已经成为瓶颈，故采用gevent server，代码参考[flask_example_multigpu.py](example/flask_example_multigpu.py)
 
 | gpu_worker_num | Naive | ThreadedStreamer |Streamer|RedisStreamer
-|-|-|-|
-|1||||362.69|
-|2||||458.86|
-|4||||426.60|
+|-|-|-|-|-|
+|1|||362.69||
+|2|||458.86||
+|4|||426.60||
 
 *   ```ThreadedStreamer```由于Python GIL的限制，多worker并没有意义，仅测单gpu worker数据进行对比。
 *   ```Streamer```大于2个gpu worker时，性能提升并不是线性。
