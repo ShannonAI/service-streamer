@@ -1,8 +1,8 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/30
-import os
 import torch
 from pytorch_transformers import *
+from service_streamer import ManagedModel
 
 
 class Model(object):
@@ -49,6 +49,15 @@ class Model(object):
             batch_outputs.append(predicted_token)
 
         return batch_outputs
+
+
+class ManagedBertModel(ManagedModel):
+
+    def init_model(self):
+        self.model = Model()
+
+    def predict(self, batch):
+        return self.model.predict(batch)
 
 
 if __name__ == "__main__":

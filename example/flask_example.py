@@ -1,9 +1,9 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/30
 
-from multiprocessing import freeze_support
+import multiprocessing as mp
 from flask import Flask, request, jsonify
-from service_streamer import ThreadedStreamer, Streamer
+from service_streamer import ThreadedStreamer, Streamer, RedisStreamer
 from bert_model import Model
 
 
@@ -27,8 +27,11 @@ def stream_predict():
 
 
 if __name__ == "__main__":
-    freeze_support()
+    # for ThreadedStreamer/Streamer
+    mp.freeze_support()
+    mp.set_start_method("spawn", force=True)
     model = Model()
-    # streamer = ThreadedStreamer(model.predict, batch_size=64, max_latency=0.1)
-    streamer = Streamer(model.predict, batch_size=64, max_latency=0.1)
+    streamer = ThreadedStreamer(model.predict, batch_size=64, max_latency=0.1)
+    # streamer = Streamer(model.predict, batch_size=64, max_latency=0.1)
+
     app.run(port=5005, threaded=True, debug=False)

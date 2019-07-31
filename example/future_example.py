@@ -4,26 +4,19 @@
 import time
 import multiprocessing as mp
 from tqdm import tqdm
-from service_streamer import ThreadedStreamer, Streamer, ManagedModel
-from bert_model import Model
-
-
-class ManagedBertModel(ManagedModel):
-
-    def init_model(self):
-        self.model = Model()
-
-    def predict(self, batch):
-        return self.model.predict(batch)
+from service_streamer import ThreadedStreamer, Streamer, RedisStreamer
+from bert_model import Model, ManagedBertModel
 
 
 def main():
     max_batch = 64
     model = Model()
-    text = "Who was Jim Henson ? Jim Henson was a puppeteer"
-    # streamer = Streamer(ManagedBertModel, batch_size=max_batch, max_latency=0.1, worker_num=1, cuda_devices=(0, 1, 2, 3))
     streamer = ThreadedStreamer(model.predict, batch_size=max_batch, max_latency=0.1)
-    num_times = 3000
+    # streamer = Streamer(ManagedBertModel, batch_size=max_batch, max_latency=0.1, worker_num=4, cuda_devices=(0, 1, 2, 3))
+    # streamer = RedisStreamer()
+
+    text = "Happy birthday to"
+    num_times = 8000
 
 
     """
@@ -33,6 +26,7 @@ def main():
     t_end = time.time()
     print('model prediction time', t_end - t_start)
     """
+
     t_start = time.time()
     inputs = [text] * num_times
     for i in tqdm(range(num_times // max_batch + 1)):
