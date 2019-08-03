@@ -28,7 +28,7 @@ ServiceStreamer是一个中间件，将服务请求排队组成一个完整的ba
 
 - :hatching_chick: **简单易用**: 只需添加两三行代码即可让模型提速上十倍。
 - :zap: **处理速度快**: 低延迟，专门针对速度做了优化，见 [基准测试](#基准测试)。
-- :octopus: **可扩展性好**: 可轻松扩展到多GPU场景，处理大量请求，见 [分布式](#分布式)。
+- :octopus: **可扩展性好**: 可轻松扩展到多GPU场景，处理大量请求，见 [分布式](#分布式gpu-worker)。
 - :crossed_swords: **适用性强**: 中间件，适用于所有深度学习框架和web框架。 
 
 <h2 align="center">安装步骤</h2>
@@ -160,7 +160,7 @@ outpus = streamer.predict(batch_inputs)
 
 短短几行代码，通常可以实现数十(```batch_size/batch_per_request```)倍的加速。 
 
-#### 多进程GPU worker
+#### 分布式GPU worker
 
 上面的例子是在web server进程中，开启子线程作为GPU worker进行batch predict，用线程间队列进行通信和排队。
 
