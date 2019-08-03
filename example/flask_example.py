@@ -2,11 +2,9 @@
 # Created by Meteorix at 2019/7/30
 
 import multiprocessing as mp
-
-from bert_model import Model
 from flask import Flask, request, jsonify
-
 from service_streamer import ThreadedStreamer
+from bert_model import TextInfillingModel as Model
 
 app = Flask(__name__)
 model = None
@@ -35,4 +33,4 @@ if __name__ == "__main__":
     streamer = ThreadedStreamer(model.predict, batch_size=64, max_latency=0.1)
     # streamer = Streamer(model.predict, batch_size=64, max_latency=0.1)
 
-    app.run(port=5005, threaded=True, debug=False)
+    app.run(port=5005, debug=False)

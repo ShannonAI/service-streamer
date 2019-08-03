@@ -20,7 +20,7 @@ torch.cuda.manual_seed(SEED)
 
 
 class TextInfillingModel(object):
-    def __init__(self, max_sent_len=64):
+    def __init__(self, max_sent_len=16):
         # self.model_path = "bert-base-uncased"
         self.model_path = "/data/nfsdata/nlp/BERT_BASE_DIR/uncased_L-24_H-1024_A-16"
         self.tokenizer = BertTokenizer.from_pretrained(self.model_path)
@@ -61,7 +61,7 @@ class TextInfillingModel(object):
 class ManagedBertModel(ManagedModel):
 
     def init_model(self):
-        self.model = TextInfillingModel(max_sent_len=64)
+        self.model = TextInfillingModel()
 
     def predict(self, batch):
         return self.model.predict(batch)
@@ -71,17 +71,18 @@ def main():
     batch = ["twinkle twinkle [MASK] star",
              "Happy birthday to [MASK]",
              'the answer to life, the [MASK], and everything']
-    m = TextInfillingModel()
+    model = TextInfillingModel()
     start_time = time.time()
-    outputs = m.predict(batch)
+    outputs = model.predict(batch)
+    print(outputs)
     print('original model', time.time() - start_time, outputs)
 
-    threaded_streamer = ThreadedStreamer(m.predict, 64, 0.1)
+    threaded_streamer = ThreadedStreamer(model.predict, 64, 0.1)
     start_time = time.time()
     outputs = threaded_streamer.predict(batch)
     print('threaded model', time.time() - start_time, outputs)
 
-    streamer = Streamer(m.predict, 64, 0.1, worker_num=4)
+    streamer = Streamer(model.predict, 64, 0.1, worker_num=4)
     start_time = time.time()
     outputs = streamer.predict(batch)
     print('single-gpu multiprocessing', time.time() - start_time, outputs)
