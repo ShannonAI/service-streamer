@@ -6,8 +6,8 @@
   <a href="#这是什么">这是什么</a> •
   <a href="#功能特色">功能特色</a> •
   <a href="#安装步骤">安装步骤</a> •
-  <a href="#五分钟搭建BERT服务">五分钟搭建BERT服务</a> •
-  <a href="#API介绍">API介绍</a> •
+  <a href="#五分钟搭建bert服务">五分钟搭建BERT服务</a> •
+  <a href="#api介绍">API介绍</a> •
   <a href="#基准测试">基准测试</a> •
   
 </p>
@@ -27,9 +27,9 @@ ServiceStreamer是一个中间件，将服务请求排队组成一个完整的ba
 <h2 align="center">功能特色</h2>
 
 - :hatching_chick: **简单易用**: 只需添加两三行代码即可让模型提速上十倍。
-- :zap: **处理速度快**: 低延迟，专门针对速度做了优化。见 [基准测试](#基准测试).
-- :octopus: **可扩展性好**: 可轻松扩展到多GPU场景，处理大量请求。见 [分布式](#分布式).
-- :gem: **可靠性强**: 在大量数据集和模型上测试没有发现错误和异常。
+- :zap: **处理速度快**: 低延迟，专门针对速度做了优化，见 [基准测试](#基准测试)。
+- :octopus: **可扩展性好**: 可轻松扩展到多GPU场景，处理大量请求，见 [分布式](#分布式)。
+- :crossed_swords: **适用性强**: 中间件，适用于所有深度学习框架和web框架。 
 
 <h2 align="center">安装步骤</h2>
 
@@ -87,7 +87,7 @@ pip install service_streamer
     ["you"]
     ```
     
-    这时候你的web服务每秒钟只能完成12句请求(见[基准测试](#基准测试)
+    这时候你的web服务每秒钟只能完成12句请求，见[基准测试](#基准测试)
 
 3. 下面我们通过`service_streamer`封装你的模型函数，三行代码使BERT服务的预测速度达到每秒200+句(16倍QPS)。
 
@@ -143,7 +143,7 @@ pip install service_streamer
 outputs = model.predict(batch_inputs)
 ```
 
-用**ServiceStreamer**中间件封装```predict```函数，将request排队成一个完整的batch，再送进GPU。
+用**service_streamer**中间件封装```predict```函数，将request排队成一个完整的batch，再送进GPU。
 牺牲一定的时延（默认最大0.1s），提升整体性能，极大提高GPU利用率。
 
 ```python
