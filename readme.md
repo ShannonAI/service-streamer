@@ -1,15 +1,14 @@
 <h1 align="center">Service Streamer</h1>
 
-<p align="center">Service Streamer for deep learning web service.</p>
+<p align="center">加速你的深度学习服务</p>
 
 <p align="center">
-  <a href="#what-is-it">What is it</a> •
-  <a href="#highlights">Highlights</a> •
-  <a href="#install">Install</a> •
-  <a href="#example">Example</a> •
-  <a href="#getting-started">Getting Started</a> •
-  <a href="#future-api">Future API</a> •
-  <a href="#benchmark">Benchmark</a> •
+  <a href="#这是什么">这是什么</a> •
+  <a href="#功能特色">功能特色</a> •
+  <a href="#安装步骤">安装步骤</a> •
+  <a href="#举例说明">举例说明</a> •
+  <a href="#API介绍">API介绍</a> •
+  <a href="#基准测试">基准测试</a> •
   
 </p>
 
@@ -17,33 +16,138 @@
 <h6 align="center">Made by ShannonAI • :globe_with_meridians: <a href="http://www.shannonai.com/">http://www.shannonai.com/</a></h6>
 
 
-<h2 align="center">What is it</h2>
+<h2 align="center">这是什么</h2>
 
 深度学习模型在训练和测试时，通常使用小批量(mini-batch)的方式将样本组装在一起，这样能充分利用GPU的并行计算特性，加快运算速度。
 但在将使用了深度学习模型的服务部署上线的时候，由于用户请求通常是离散和单次的，若采取传统的同步阻塞式的消息通信机制，
 在短时间内有大量请求时，会造成计算资源闲置，用户等待时间变长。
 
-ServiceStreamer是一个中间件，将request排队成一个完整的batch，在送进gpu。 牺牲一定的时延（默认最大0.1s），提升整体性能，极大提高GPU利用率。
+ServiceStreamer是一个中间件，将服务请求排队组成一个完整的batch，再送进GPU运算。牺牲一定的排队的时间（默认最大0.1s），提升整体性能，极大提高GPU利用率。
 
-<h2 align="center">Highlights</h2>
+<h2 align="center">功能特色</h2>
 
-- :hatching_chick: **简单易用**: 添加两三行代码即可跑起来。
-- :zap: **处理速度快**: 低延迟，专门针对速度做了优化。见 [benchmark](#benchmark).
-- :octopus: **可扩展性好**: 可轻松扩展到多GPU，大量请求。见 [分布式](#分布式).
+- :hatching_chick: **简单易用**: 只需添加两三行代码即可让模型提速上十倍。
+- :zap: **处理速度快**: 低延迟，专门针对速度做了优化。见 [基准测试](#基准测试).
+- :octopus: **可扩展性好**: 可轻松扩展到多GPU场景，处理大量请求。见 [分布式](#分布式).
 - :gem: **可靠性强**: 在大量数据集和模型上测试没有发现错误和异常。
 
-<h2 align="center">Install</h2>
+<h2 align="center">安装步骤</h2>
 
 可通过`pip`安装，要求**Python >= 3.5** :
 ```bash
 pip install service_streamer 
 ```
 
-<h2 align="center">Example</h2>
-我们提供了一个完整的[example](./example)，利用PyTorch实现的Bert预测下一个词的服务。
-并且针对这个example做了性能[benchmark](#benchmark)。
+<h2 align="center">举例说明</h2>
+在本节中，我们使用一个完整的自然语言处理任务来展示，如何在五分钟之内，搭建起每秒处理1400个句子的BERT模型。
 
-<h2 align="center">Getting Started</h2>
+Text Infilling(文字填充)是自然语言处理中的一个常见任务：给定一个随机挖掉几个词的句子，模型需要通过给定的上下文来预测出那些被挖掉的单词。
+
+BERT是一个近年来广受关注的预训练语言模型。其预训练任务之一——遮蔽语言模型与文字填充任务极为相似，因此在大规模无监督语料上做过预训练的BERT，非常适合文字填充任务。
+
+首先，我们定义一个文字填充模型，其`predict`方法接受批量的句子，并给出每个句子中`[MASK]`位置的预测结果。
+```python
+from typing import List
+
+import torch
+from pytorch_transformers import *
+
+class TextInfillingModel(object):
+    def __init__(self):
+        self.model_path = "bert-base-uncased"
+        # self.model_path = "/data/nfsdata/nlp/BERT_BASE_DIR/uncased_L-24_H-1024_A-16"
+        self.tokenizer = BertTokenizer.from_pretrained(self.model_path)
+        self.bert = BertForMaskedLM.from_pretrained(self.model_path)
+        self.bert.eval()
+        self.bert.to("cuda")
+        self.max_sent_len = 64
+
+    def predict(self, batch: List[str]) -> List[str]:
+        """predict masked word"""
+        batch_inputs = []
+        masked_indexes = []
+
+        for text in batch:
+            tokenized_text = self.tokenizer.tokenize(text)
+            if len(tokenized_text) > self.max_sent_len - 2:
+                tokenized_text = tokenized_text[: self.max_sent_len - 2]
+            tokenized_text = ['[CLS]'] + tokenized_text + ['[SEP]']
+            tokenized_text += ['[PAD]'] * (self.max_sent_len - len(tokenized_text))
+            indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokenized_text)
+            batch_inputs.append(indexed_tokens)
+            masked_indexes.append(tokenized_text.index('[MASK]'))
+        tokens_tensor = torch.tensor(batch_inputs).to("cuda")
+
+        with torch.no_grad():
+            # prediction_scores: ``torch.FloatTensor`` of shape ``(batch_size, sequence_length, config.vocab_size)``
+            prediction_scores = self.bert(tokens_tensor)[0]
+
+        batch_outputs = []
+        for i in range(len(batch_inputs)):
+            predicted_index = torch.argmax(prediction_scores[i, masked_indexes[i]]).item()
+            predicted_token = self.tokenizer.convert_ids_to_tokens(predicted_index)
+            batch_outputs.append(predicted_token)
+
+        return batch_outputs
+```
+接着我们构造一些例子，验证BERT模型的效果。注意初次使用pytorch_transformers运行时需要下载BERT模型，请稍等片刻。
+
+```python
+import time
+batch = ["twinkle twinkle [MASK] star",
+         "Happy birthday to [MASK]",
+         'the answer to life, the [MASK], and everything']
+m = TextInfillingModel()
+start_time = time.time()
+outputs = m.predict(batch)
+print('original model', time.time() - start_time, outputs)
+```
+下面我们演示如何通过添加几行代码，使模型预测的速度得到显著提升。
+```python
+from service_streamer import ThreadedStreamer
+threaded_streamer = ThreadedStreamer(m.predict, 64, 0.1)
+start_time = time.time()
+outputs = threaded_streamer.predict(batch)
+print('threaded model', time.time() - start_time, outputs)
+```
+可以看到，仅需将预测方法传给多线程ThreadedStreamer，并使用threaded_streamer来做预测，预测时间可以下降为原来的15%。
+最后我们演示通过Streamer配合Future API使BERT的预测速度达到1400句每秒。
+```python
+import multiprocessing
+from service_streamer import ManagedModel, Streamer
+multiprocessing.set_start_method("spawn", force=True)
+
+class ManagedBertModel(ManagedModel):
+
+    def init_model(self):
+        self.model = TextInfillingModel()
+
+    def predict(self, batch):
+        return self.model.predict(batch)
+
+text = "Happy birthday to [MASK]"
+batch_size = 64
+num_epochs = 100
+total_steps = batch_size * num_epochs
+streamer = Streamer(ManagedBertModel, batch_size=batch_size, max_latency=0.1, worker_num=4, cuda_devices=(0, 1, 2, 3))
+
+t_start = time.time()
+xs = []
+for i in range(total_steps):
+    future = streamer.submit([text])
+    xs.append(future)
+
+for future in tqdm(xs):  # 先拿到所有future对象，再等待异步返回
+    output = future.result(timeout=20)
+t_end = time.time()
+print('[streamed]sentences per second', total_steps / (t_end - t_start))
+```
+
+
+<h2 align="center">API介绍</h2>
+
+#### 多线程加速
+
 通常深度学习的inference按batch输入会比较快
 
 ```python
@@ -66,8 +170,6 @@ outpus = streamer.predict(batch_inputs)
 然后你的web server需要开启多线程（或协程）即可。
 
 短短几行代码，通常可以实现数十(```batch_size/batch_per_request```)倍的加速。 
-
-<h2 align="center">分布式</h2>
 
 #### 分布式GPU worker
 
@@ -107,6 +209,8 @@ outputs = streamer.predict(batch)
 所以我们提供了```ManagedModel```类，方便模型lazy初始化和迁移，以支持多GPU卡。
 
 ```python
+from service_streamer import ManagedModel
+
 class ManagedBertModel(ManagedModel):
 
     def init_model(self):
@@ -148,8 +252,8 @@ gunicorn -c redis_streamer_gunicorn.py flask_example:app
 当你的使用场景不是web service，又想利用``service_streamer``进行排队或者分布式GPU计算，可以直接使用Future API。
 
 ```python
-from service_streamer import ThreadedStreamer as Streamer
-streamer = Streamer(model.predict, 64, 0.1)
+from service_streamer import ThreadedStreamer
+streamer = ThreadedStreamer(model.predict, 64, 0.1)
 
 xs = []
 for i in range(200):
@@ -162,22 +266,21 @@ for future in xs:
     print(outputs)
 ```
 
-<h2 align="center">Benchmark</h2>
+<h2 align="center">基准测试</h2>
 
-### how to benchmark
+### 如何做基准测试
 
-We use [wrk](https://github.com/wg/wrk) to do benchmark
+我们使用 [wrk](https://github.com/wg/wrk) 来做基准测试。
 
-All the code and bench scripts are in [example](./example).
+所有测试代码和脚本在 [example](./example)可以找到。
 
-### environment
+### 环境
 
-*   cpu: 
 *   gpu: Titan Xp
 *   cuda: 9.0
 *   pytorch: 1.1   
 
-### single gpu worker
+### 单个GPU进程
 
 ```bash
 # start flask threaded server
@@ -194,7 +297,7 @@ python example/flask_example.py
 | qps | 12.78 | 207.59 | 321.70 | 372.45 |
 | latency  | 8440ms | 603.35ms | 392.66ms | 340.74ms |
 
-### multiple gpu workers
+### 多个GPU进程
 
 这里对比单web server进程的情况下，多gpu worker的性能，验证通信和负载均衡机制的性能损耗。
 Flask多线程server已经成为性能瓶颈，故采用gevent server，代码参考[flask_multigpu_example.py](example/flask_multigpu_example.py)
@@ -212,7 +315,7 @@ Flask多线程server已经成为性能瓶颈，故采用gevent server，代码�
 *   ```ThreadedStreamer```由于Python GIL的限制，多worker并没有意义，仅测单gpu worker数据进行对比。
 *   ```Streamer```大于2个gpu worker时，性能提升并不是线性。这是由于flask的性能问题，server进程的cpu利用率达到100，此时瓶颈是cpu而不是gpu。
 
-### multiple gpu workers future api
+### 利用Future API使用多个GPU进程
 
 为了规避web server的性能瓶颈，我们使用[底层Future Api](#底层Future API使用)本地测试多gpu worker的benchmark，
 代码参考[future_example.py](example/future_example.py)
