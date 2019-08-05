@@ -306,7 +306,7 @@ Flask多线程server已经成为性能瓶颈，故采用gevent server，代码�
 
 ### 利用Future API使用多个GPU进程
 
-为了规避web server的性能瓶颈，我们使用[底层Future Api](#底层Future API使用)本地测试多gpu worker的benchmark，
+为了规避web server的性能瓶颈，我们使用[底层Future Api](#future-api)本地测试多gpu worker的benchmark，
 代码参考[future_example.py](example/future_example.py)
 
 | gpu_worker_num | Batched | ThreadedStreamer |Streamer|RedisStreamer
