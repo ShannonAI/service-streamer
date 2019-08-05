@@ -254,6 +254,7 @@ class Streamer(_BaseStreamer):
     def _wait_for_worker_ready(self, timeout=20):
         # wait for all workers finishing init
         for (i, e) in enumerate(self._worker_ready_events):
+            # todo: select all events with timeout
             is_ready = e.wait(timeout)
             print("gpu worker:%d ready state: %s" % (i, is_ready))
 
