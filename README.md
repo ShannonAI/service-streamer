@@ -1,6 +1,6 @@
 <h1 align="center">Service Streamer</h1>
 
-<p align="center">Boosting your Web Services of Deep Learning Applications. [Chinese README](./README_zh.md)</p>
+<p align="center">Boosting your Web Services of Deep Learning Applications. [中文README](./README_zh.md)</p>
 
 
 <p align="center">
