@@ -26,9 +26,10 @@ def stream_predict():
 
 
 if __name__ == "__main__":
-    from multiprocessing import freeze_support
+    import multiprocessing as mp
+    mp.freeze_support()
+    mp.set_start_method("spawn", force=True)
 
-    freeze_support()
     streamer = Streamer(ManagedBertModel, batch_size=64, max_latency=0.1, worker_num=8, cuda_devices=(0, 1, 2, 3))
 
     # ThreadedStreamer for comparison

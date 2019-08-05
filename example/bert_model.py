@@ -1,18 +1,12 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/30
 import logging
-import multiprocessing
-import time
-from typing import List
-
 import torch
+from typing import List
 from pytorch_transformers import *
-
-from service_streamer import ManagedModel, Streamer, ThreadedStreamer
+from service_streamer import ManagedModel
 
 logging.basicConfig(level=logging.ERROR)
-
-multiprocessing.set_start_method("spawn", force=True)
 
 SEED = 0
 torch.manual_seed(SEED)
@@ -67,40 +61,10 @@ class ManagedBertModel(ManagedModel):
         return self.model.predict(batch)
 
 
-def main():
+if __name__ == "__main__":
     batch = ["twinkle twinkle [MASK] star",
              "Happy birthday to [MASK]",
              'the answer to life, the [MASK], and everything']
     model = TextInfillingModel()
-    start_time = time.time()
     outputs = model.predict(batch)
     print(outputs)
-    print('original model', time.time() - start_time, outputs)
-
-    threaded_streamer = ThreadedStreamer(model.predict, 64, 0.1)
-    start_time = time.time()
-    outputs = threaded_streamer.predict(batch)
-    print('threaded model', time.time() - start_time, outputs)
-
-    streamer = Streamer(model.predict, 64, 0.1, worker_num=4)
-    start_time = time.time()
-    outputs = streamer.predict(batch)
-    print('single-gpu multiprocessing', time.time() - start_time, outputs)
-
-    managed_streamer = Streamer(ManagedBertModel, 64, 0.1, worker_num=4, cuda_devices=[0, 3])
-    start_time = time.time()
-    outputs = managed_streamer.predict(batch)
-    print('multi-gpu multiprocessing', time.time() - start_time, outputs)
-
-    start_time = time.time()
-    xs = []
-    for i in range(1):
-        future = threaded_streamer.submit(batch)
-        xs.append(future)
-    for future in xs:
-        outputs = future.result()
-    print('Future API', time.time() - start_time, outputs)
-
-
-if __name__ == "__main__":
-    main()

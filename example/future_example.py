@@ -19,13 +19,11 @@ def main():
     num_epochs = 100
     total_steps = batch_size * num_epochs
 
-    """
     t_start = time.time()
-    for i in tqdm(range(num_times)):
+    for i in tqdm(range(num_epochs)):
         output = model.predict([text])
     t_end = time.time()
     print('model prediction time', t_end - t_start)
-    """
 
     t_start = time.time()
     for i in tqdm(range(num_epochs)):
