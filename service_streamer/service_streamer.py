@@ -234,11 +234,11 @@ class Streamer(_BaseStreamer):
         self._output_queue = mp.Queue()
         self._worker = StreamWorker(predict_function_or_model, batch_size, max_latency, self._input_queue, self._output_queue)
         self._worker_ps = []
+        self._worker_ready_events = []
         self._setup_gpu_worker()
         self._delay_setup()
 
     def _setup_gpu_worker(self):
-        events = []
         for i in range(self.worker_num):
             e = mp.Event()
             if self.cuda_devices is not None:
@@ -249,10 +249,13 @@ class Streamer(_BaseStreamer):
             p = mp.Process(target=self._worker.run_forever, args=args, name="stream_worker", daemon=True)
             p.start()
             self._worker_ps.append(p)
-            events.append(e)
+            self._worker_ready_events.append(e)
+
+    def _wait_for_worker_ready(self, timeout=20):
         # wait for all workers finishing init
-        for e in events:
-            e.wait(10)
+        for (i, e) in enumerate(self._worker_ready_events):
+            is_ready = e.wait(timeout)
+            print("gpu worker:%d ready state: %s" % (i, is_ready))
 
     def _send_request(self, task_id, request_id, model_input):
         self._input_queue.put((0, task_id, request_id, model_input))
@@ -271,20 +274,18 @@ class StreamWorker(_BaseStreamWorker):
         self._request_queue = request_queue
         self._response_queue = response_queue
 
-    def run_forever(self, gpu_id=None, event=None):
+    def run_forever(self, gpu_id=None, ready_event=None):
         # if it is a managed model, lazy init model after forked & set CUDA_VISIBLE_DEVICES
         if isinstance(self._predict, type) and issubclass(self._predict, ManagedModel):
             model_class = self._predict
             print("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
             self._model = model_class(gpu_id)
             self._model.init_model()
+            print("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
             self._predict = self._model.predict
-        self.ready_event(event)  # tell father process that init is finished
+            if ready_event:
+                ready_event.set()  # tell father process that init is finished
         super().run_forever()
-
-    @staticmethod
-    def ready_event(e):
-        e.set()
 
     def _recv_request(self, timeout=1):
         try:

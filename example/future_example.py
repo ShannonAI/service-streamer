@@ -9,10 +9,13 @@ from example.bert_model import TextInfillingModel, ManagedBertModel
 
 
 def main():
+    mp.set_start_method("spawn", force=True)
+
     batch_size = 64
     model = TextInfillingModel()
     # streamer = ThreadedStreamer(model.predict, batch_size=max_batch, max_latency=0.1)
     streamer = Streamer(ManagedBertModel, batch_size=batch_size, max_latency=0.1, worker_num=4, cuda_devices=(0, 1, 2, 3))
+    streamer._wait_for_worker_ready()
     # streamer = RedisStreamer()
 
     text = "Happy birthday to [MASK]"

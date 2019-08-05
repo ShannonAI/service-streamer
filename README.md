@@ -198,6 +198,7 @@ outputs = streamer.predict(batch)
 所以我们提供了```ManagedModel```类，方便模型lazy初始化和迁移，以支持多GPU卡。
 
 ```python
+import multiprocessing; multiprocessing.set_start_method("spawn", force=True)
 from service_streamer import ManagedModel
 
 class ManagedBertModel(ManagedModel):
