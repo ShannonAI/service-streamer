@@ -53,9 +53,9 @@ pip install service_streamer
         ...
 
 
-    batch = ["twinkle twinkle [MASK] star",
-             "Happy birthday to [MASK]",
-             'the answer to life, the [MASK], and everything']
+    batch = ["twinkle twinkle [MASK] star.",
+             "Happy birthday to [MASK].",
+             'the answer to life, the [MASK], and everything.']
     model = TextInfillingModel()
     outputs = model.predict(batch)
     print(outputs)
@@ -83,7 +83,7 @@ pip install service_streamer
     运行[flask_example.py](./example/flask_example.py)，即可得到一个朴素的web服务器
     
     ```bash
-    curl -X POST http://localhost:5005/naive -d 's=Happy birthday to [MASK]' 
+    curl -X POST http://localhost:5005/naive -d 's=Happy birthday to [MASK].' 
     ["you"]
     ```
     
