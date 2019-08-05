@@ -42,7 +42,9 @@ pip install service_streamer
 
 We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. The service processes 1400 sentences per second.  
 
-Text Infilling is a task in natural language processing: given a sentence with several words randomly removed, the model predicts those words removed through the given context. ``BERT`` has attracted a lot of attention in these two years and it achieves new State-Of-The-Art results across many nlp tasks. BERT utilizes "Masked Language Model (MLM)" as one of the pre-training objectives. MLM models randomly mask some of the tokens from the input, and the objective is to predict the original vocabulary id of the masked word based on its context. MLM has similarities with text infilling. It is natural to introduce BERT to text infilling task. 
+``Text Infilling`` is a task in natural language processing: given a sentence with several words randomly removed, the model predicts those words removed through the given context. 
+
+``BERT`` has attracted a lot of attention in these two years and it achieves new State-Of-The-Art results across many nlp tasks. BERT utilizes "Masked Language Model (MLM)" as one of the pre-training objectives. MLM models randomly mask some of the tokens from the input, and the objective is to predict the original vocabulary id of the masked word based on its context. MLM has similarities with text infilling. It is natural to introduce BERT to text infilling task. 
 
 
 1. First, we define a model for text filling task [bert_model.py](./example/bert_model.py). The `predict` function accepts a batch of sentences and returns predicted position results of the `[MASK]` token. 
@@ -162,7 +164,7 @@ streamer = ThreadedStreamer(model.predict, batch_size=64, max_latency=0.1)
 outputs = streamer.predict(batch_inputs)
 ```
 
-Start web server on multi-threading (or coordination). Your server can usually achieve tens of (```batch_size/batch_per_request```) times faster by adding a few lines of code.
+Start web server on multi-threading (or coordination). Your server can usually achieve 10x (```batch_size/batch_per_request```) times faster by adding a few lines of code.
 
 
 #### Distributed GPU worker
@@ -181,7 +183,7 @@ outputs = streamer.predict(batch)
 
 ``Streamer`` uses ``spawn`` subprocesses to run gpu workers by default. ``Streamer`` uses interprocess queues to communicate and queue. It can distribute a large number of requests to multiple workers for processing.
 
-Then the prediction results of the model are returned to the corresponding web server in batches. And results are forward to the corresponding http response.
+Then the prediction results of the model are returned to the corresponding web server in batches. And results are forwarded to the corresponding http response.
 
 ```
 +-----------------------------------------------------------------------------+
