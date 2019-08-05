@@ -1,6 +1,6 @@
 <h1 align="center">Service Streamer</h1>
 
-<p align="center">Boosting your Web Services of Deep Learning Applications</p>
+<p align="center">Boosting your Web Services of Deep Learning Applications. [Chinese README](./README.md)</p>
 
 
 <p align="center">
@@ -21,7 +21,7 @@
 
 A mini-batch collects individual data samples and is usually adopted in deep learning models during training and inference. Models can utilize the parallel computation characteristic of GPUs and speed up computing. Requests from users are usually discrete when machine learning models are deployed online. There is an issue that computing processors are idle when using conventional synchronous blocking message communication mechanism. The wait time will be longer when there are requests from enormous users in a short time. 
 
-ServiceStreamer is a middleware for web service of machine learning applications. Queue requests from users are scheduled into mini-batches. ServiceStreamer can evaluate the overall performance of the system by improving the ratio of GPU utilization. 
+ServiceStreamer is a middleware for web service of machine learning applications. Queue requests from users are scheduled into mini-batches. ServiceStreamer can enhance the overall performance of the system by improving the ratio of GPU utilization. 
 
 <h2 align="center">Highlights</h2>
 
