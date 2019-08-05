@@ -19,7 +19,7 @@
 
 <h2 align="center">What is Service Streamer ?</h2>
 
-A mini-batch collects individual data samples and is usually adopted in deep learning models during training and inference. Thus models can fully utilize the parallel computation characteristics of GPU and speed up computing. Requests from users are usually discrete when machine learning models are deployed online. But there comes an issue that computing processors are idle when using conventional synchronous blocking message communication mechanism. The user's waiting time will become longer when there are requests from a large number of users in a short time. 
+A mini-batch collects individual data samples and is usually adopted in deep learning models during training and inference. Models can utilize the parallel computation characteristic of GPUs and speed up computing. Requests from users are usually discrete when machine learning models are deployed online. There is an issue that computing processors are idle when using conventional synchronous blocking message communication mechanism. The wait time will be longer when there are requests from enormous users in a short time. 
 
 ServiceStreamer is a middleware for web service of machine learning applications. Queue requests from users are scheduled into mini-batches. ServiceStreamer can evaluate the overall performance of the system by improving the ratio of GPU utilization. 
 
@@ -33,7 +33,7 @@ ServiceStreamer is a middleware for web service of machine learning applications
 
 <h2 align="center">Installation</h2>
 
-Install ServiceStream by using `pip`，requires**Python >= 3.5** :
+Install ServiceStream by using `pip`，requires **Python >= 3.5** :
 ```bash
 pip install service_streamer 
 ```
@@ -42,13 +42,10 @@ pip install service_streamer
 
 We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. The service processes 1400 sentences per second.  
 
-Text Infilling is a task in natural language processing: given a sentence with several words randomly removed, the model predicts those words removed through the given context.
+Text Infilling is a task in natural language processing: given a sentence with several words randomly removed, the model predicts those words removed through the given context. ``BERT`` has attracted a lot of attention in these two years and it achieves new State-Of-The-Art results across many nlp tasks. BERT utilizes "Masked Language Model (MLM)" as one of the pre-training objectives. MLM models randomly mask some of the tokens from the input, and the objective is to predict the original vocabulary id of the masked word based on its context. MLM has similarities with text infilling. It is natural to introduce BERT to text infilling task. 
 
 
-``BERT`` has attracted a lot of attention in these two years and it achieves new SOTA across many nlp tasks. BERT utilizes "Masked Language Model (MLM)" as one of the pre-training objectives. MLM models randomly mask some of the tokens from the input, and the objective is to predict the original vocabulary id of the masked word based only on its context. MLM has similarities with text infilling. It is natural to introduce BERT to text infilling task. 
-
-
-1. First, we define a model for text filling task [bert_model.py](./example/bert_model.py). The `predict` function accpects a batch of sentences and returns predicted position results of the `[MASK]` token. 
+1. First, we define a model for text filling task [bert_model.py](./example/bert_model.py). The `predict` function accepts a batch of sentences and returns predicted position results of the `[MASK]` token. 
 
     ```python
     class TextInfillingModel(object):
@@ -63,7 +60,7 @@ Text Infilling is a task in natural language processing: given a sentence with s
     print(outputs)
     # ['little', 'you', 'universe']
     ```
-    Please first download pre-trained BERT model before you start. 
+    **Note**: Please download pre-trained BERT model at first. 
 
 
 2. Second, utilize [Flask](https://github.com/pallets/flask) to pack predicting interfaces to Web service. [flask_example.py](./example/flask_example.py)
@@ -90,10 +87,10 @@ Text Infilling is a task in natural language processing: given a sentence with s
     ["you"]
     ```
 
-    At this time, your web server can only serve 12 requests per second, see [benchmark](#benchmark)
+    At this time, your web server can only serve 12 requests per second. Please see [benchmark](#benchmark) for more details.
 
 
-3. Third, encapsulate model function through `service_streamer`, and three lines of code make the prediction speed of BERT service reach 200+ sentences per second (16x faster).
+3. Third, encapsulate model functions through `service_streamer`. Three lines of code make the prediction speed of BERT service reach 200+ sentences per second (16x faster).
 
     ```python
     from service_streamer import ThreadedStreamer
@@ -121,7 +118,7 @@ Text Infilling is a task in natural language processing: given a sentence with s
 
 
     ```python
-    import multiprocessing
+    import multiprocessing; multiprocessing.set_start_method("spawn", force=True)
     from service_streamer import ManagedModel, Streamer
     multiprocessing.set_start_method("spawn", force=True)
 
@@ -144,7 +141,7 @@ Text Infilling is a task in natural language processing: given a sentence with s
 
 #### Quick Start
 
-In general, the inference speed will be faster by parallel computing.
+In general, the inference speed will be faster by utilizing parallel computing.
 
 ```python
 outputs = model.predict(batch_inputs)
@@ -162,10 +159,10 @@ streamer = ThreadedStreamer(model.predict, batch_size=64, max_latency=0.1)
 
 # Replace model.predict with streamer.predict
 
-outpus = streamer.predict(batch_inputs)
+outputs = streamer.predict(batch_inputs)
 ```
 
-Start web server on multi-threading (or coordination). With just a few lines of code, your server can usually achieve tens of (```batch_size/batch_per_request```) times faster.
+Start web server on multi-threading (or coordination). Your server can usually achieve tens of (```batch_size/batch_per_request```) times faster by adding a few lines of code.
 
 
 #### Distributed GPU worker
@@ -181,9 +178,10 @@ streamer = Streamer(model.predict, 64, 0.1, worker_num=4)
 outputs = streamer.predict(batch)
 ```
 
+
 ``Streamer`` uses ``spawn`` subprocesses to run gpu workers by default. ``Streamer`` uses interprocess queues to communicate and queue. It can distribute a large number of requests to multiple workers for processing.
 
-Then the result of the model batch predict is returned to the corresponding web server and to the corresponding http response.
+Then the prediction results of the model are returned to the corresponding web server in batches. And results are forward to the corresponding http response.
 
 ```
 +-----------------------------------------------------------------------------+
