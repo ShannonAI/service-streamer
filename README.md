@@ -130,7 +130,7 @@ pip install service_streamer
     app.run(port=5005, debug=False)
     ```
     
-    这样即可启动8个gpu worker，平均分配在4张卡上
+    运行[flask_multigpu_example.py](./example/flask_multigpu_example.py)这样即可启动8个gpu worker，平均分配在4张卡上
 
 
 <h2 align="center">API介绍</h2>
