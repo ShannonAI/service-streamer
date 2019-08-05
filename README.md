@@ -328,7 +328,7 @@ The utilization rate of CPU reaches 100 and the bottleneck is CPU at this time. 
 
 ### Utilize Future API to start multiple GPU processes
 
-We adopt [Future API](#Future API) to conduct multi-GPU benchmeark test locally in order to reduce the influence of performance bottleneck of web server. Please refer to code example in [future_example.py](example/future_example.py)
+We adopt [Future API](#future-api) to conduct multi-GPU benchmeark test locally in order to reduce the influence of performance bottleneck of web server. Please refer to code example in [future_example.py](example/future_example.py)
 
 
 | gpu_worker_num | Batched | ThreadedStreamer |Streamer|RedisStreamer
