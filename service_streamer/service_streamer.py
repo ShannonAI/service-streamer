@@ -238,15 +238,21 @@ class Streamer(_BaseStreamer):
         self._delay_setup()
 
     def _setup_gpu_worker(self):
+        events = []
         for i in range(self.worker_num):
+            e = mp.Event()
             if self.cuda_devices is not None:
                 gpu_id = self.cuda_devices[i % len(self.cuda_devices)]
-                args = (gpu_id,)
+                args = (gpu_id, e,)
             else:
-                args = ()
+                args = (None, e,)
             p = mp.Process(target=self._worker.run_forever, args=args, name="stream_worker", daemon=True)
             p.start()
             self._worker_ps.append(p)
+            events.append(e)
+        # wait for all workers finishing init
+        for e in events:
+            e.wait(10)
 
     def _send_request(self, task_id, request_id, model_input):
         self._input_queue.put((0, task_id, request_id, model_input))
@@ -265,7 +271,7 @@ class StreamWorker(_BaseStreamWorker):
         self._request_queue = request_queue
         self._response_queue = response_queue
 
-    def run_forever(self, gpu_id=None):
+    def run_forever(self, gpu_id=None, event=None):
         # if it is a managed model, lazy init model after forked & set CUDA_VISIBLE_DEVICES
         if isinstance(self._predict, type) and issubclass(self._predict, ManagedModel):
             model_class = self._predict
@@ -273,7 +279,12 @@ class StreamWorker(_BaseStreamWorker):
             self._model = model_class(gpu_id)
             self._model.init_model()
             self._predict = self._model.predict
+        self.ready_event(event)  # tell father process that init is finished
         super().run_forever()
+
+    @staticmethod
+    def ready_event(e):
+        e.set()
 
     def _recv_request(self, timeout=1):
         try:
