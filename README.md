@@ -54,9 +54,9 @@ We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. Th
         ...
 
 
-    batch = ["twinkle twinkle [MASK] star",
-             "Happy birthday to [MASK]",
-             'the answer to life, the [MASK], and everything']
+    batch = ["twinkle twinkle [MASK] star.",
+             "Happy birthday to [MASK].",
+             'the answer to life, the [MASK], and everything.']
     model = TextInfillingModel()
     outputs = model.predict(batch)
     print(outputs)
@@ -85,7 +85,7 @@ We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. Th
     Please run [flask_example.py](./example/flask_example.py), then you will get a vanilla Web server. 
 
     ```bash
-    curl -X POST http://localhost:5005/naive -d 's=Happy birthday to [MASK]' 
+    curl -X POST http://localhost:5005/naive -d 's=Happy birthday to [MASK].' 
     ["you"]
     ```
 
