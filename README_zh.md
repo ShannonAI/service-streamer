@@ -19,10 +19,10 @@
 <h2 align="center">这是什么</h2>
 
 深度学习模型在训练和测试时，通常使用小批量(mini-batch)的方式将样本组装在一起，这样能充分利用GPU的并行计算特性，加快运算速度。
-但在将使用了深度学习模型的服务部署上线的时候，由于用户请求通常是离散和单次的，若采取传统的同步阻塞式的消息通信机制，
-在短时间内有大量请求时，会造成计算资源闲置，用户等待时间变长。
+但在将使用了深度学习模型的服务部署上线的时候，由于用户请求通常是离散和单次的，若采取传统的循环服务器或多线程服务器，
+在短时间内有大量请求时，会造成GPU计算资源闲置，用户等待时间线性增加。
 
-ServiceStreamer是一个中间件，将服务请求排队组成一个完整的batch，再送进GPU运算。牺牲一定的排队的时间（默认最大0.1s），提升整体性能，极大提高GPU利用率。
+ServiceStreamer是一个中间件，将服务请求排队组成一个完整的batch，再送进GPU运算。牺牲最小的时延（默认最大0.1s），提升整体性能，极大提高GPU利用率。
 
 <h2 align="center">功能特色</h2>
 
@@ -246,7 +246,7 @@ streamer = ThreadedStreamer(model.predict, 64, 0.1)
 
 xs = []
 for i in range(200):
-    future = streamer.submit([["How", "are", "you", "?"], ["Fine", "."], ["Thank", "you", "."]])
+    future = streamer.submit(["Happy birthday to [MASK]", "Today is my lucky [MASK]"])
     xs.append(future)
 
 # 先拿到所有future对象，再等待异步返回
