@@ -19,9 +19,9 @@
 
 <h2 align="center">What is Service Streamer ?</h2>
 
-A mini-batch collects individual data samples and is usually adopted in deep learning models during training and inference. Models can utilize the parallel computation characteristic of GPUs and speed up computing. Requests from users are usually discrete when machine learning models are deployed online. There is an issue that computing processors are idle when using conventional synchronous blocking message communication mechanism. The wait time will be longer when there are requests from enormous users in a short time. 
+A mini-batch collects data samples and is usually used in deep learning models. In this way, models can utilize the parallel computating of GPUs. Requests from users for machine learning models are usually discrete. There is an issue that computing processors are idle if conventional synchronous blocking message communication mechanism is used. And the wait time will be longer when there are enormous user requests in a short time. 
 
-ServiceStreamer is a middleware for web service of machine learning applications. Queue requests from users are scheduled into mini-batches. ServiceStreamer can enhance the overall performance of the system by improving the ratio of GPU utilization. 
+ServiceStreamer is a middleware for web service of machine learning applications. Queue requests from users are sampled into mini-batches. ServiceStreamer can enhance the overall performance of the system by improving the ratio of GPU utilization. 
 
 <h2 align="center">Highlights</h2>
 
@@ -44,7 +44,7 @@ We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. Th
 
 ``Text Infilling`` is a task in natural language processing: given a sentence with several words randomly removed, the model predicts those words removed through the given context. 
 
-``BERT`` has attracted a lot of attention in these two years and it achieves new State-Of-The-Art results across many nlp tasks. BERT utilizes "Masked Language Model (MLM)" as one of the pre-training objectives. MLM models randomly mask some of the tokens from the input, and the objective is to predict the original vocabulary id of the masked word based on its context. MLM has similarities with text infilling. It is natural to introduce BERT to text infilling task. 
+``BERT`` has attracted a lot of attention in these two years and it achieves State-Of-The-Art results across many nlp tasks. BERT utilizes "Masked Language Model (MLM)" as one of the pre-training objectives. MLM models randomly mask some of the tokens from the input, and the objective is to predict the original vocabulary id of the masked word based on its context. MLM has similarities with text infilling. It is natural to introduce BERT to text infilling task. 
 
 
 1. First, we define a model for text filling task [bert_model.py](./example/bert_model.py). The `predict` function accepts a batch of sentences and returns predicted position results of the `[MASK]` token. 
@@ -169,7 +169,7 @@ Start web server on multi-threading (or coordination). Your server can usually a
 
 #### Distributed GPU worker
 
-The performance of web server (QPS) in actual projects is much higher than that of GPU model, so we support one web server with multiple GPU worker processes.
+The performance of web server (QPS) in practice is much higher than that of GPU model. We also support one web server with multiple GPU worker processes.
 
 ```python
 import multiprocessing; multiprocessing.set_start_method("spawn", force=True)
@@ -225,7 +225,7 @@ outputs = streamer.predict(batch)
 
 #### Distributed Web Server
 
-Some cpu-intensive calculations, such as image and text preprocessing, need to be done first in web server. The preprocessed data is then forward into GPU worker for predictions after preprocessing. CPU resources often become performance bottlenecks in practice. Therefore, we also provide the mode of multi-web servers matching (single or multiple) gpu worker.
+Some cpu-intensive calculations, such as image and text preprocessing, need to be done first in web server. The preprocessed data is then forward into GPU worker for predictions. CPU resources often become performance bottlenecks in practice. Therefore, we also provide the mode of multi-web servers matching (single or multiple) gpu workers.
 
 
 Use ```RedisStream``` to specify a unique Redis address for all web servers and gpu workers. 
@@ -235,7 +235,6 @@ Use ```RedisStream``` to specify a unique Redis address for all web servers and 
 # default parameters can be omitted and localhost:6379 is used.
 streamer = RedisStreamer(redis_broker="172.22.22.22:6379")
 ```
-
 
 We make use of ``gunicorn`` or ``uwsgi`` to implement reverse proxy and load balancing.
 
@@ -250,7 +249,7 @@ Each request will be load balanced to each web server for cpu preprocessing, and
 ### Future API
 
 You might be familiar with `future` if you have used any concurrent library. 
-You can directly use the Future API when you want to use ``service_streamer`` for queueing requests or distributed GPU computing and your usage scenario is not web service. 
+You can use the Future API directly if you want to use ``service_streamer`` for queueing requests or distributed GPU computing and using scenario is not web service. 
 
 
 ```python
@@ -319,16 +318,15 @@ We adopt gevent server because multi-threaded Flask server has become a performa
 |4|N/A|N/A|494.20|1034.57|
 
 
-* ``Threaded Streamer`` Due to the limitation of Python GIL, multi-worker is meaningless. We conduct comparison studies between single GPU worker. 
+* ``Threaded Streamer`` Due to the limitation of Python GIL, multi-worker is meaningless. We conduct comparison studies using single GPU worker. 
 
 * ``Streamer`` Performance improvement is not linear when it is greater than 2 gpu worker.
-The utilization rate of CPU reaches 100 and the bottleneck is CPU at this time. And the performance issue of flask is the obstacle.  
-
+The utilization rate of CPU reaches 100. The bottleneck is CPU at this time and the performance issue of flask is the obstacle.  
 
 
 ### Utilize Future API to start multiple GPU processes
 
-We adopt [Future API](#future-api) to conduct multi-GPU benchmeark test locally in order to reduce the influence of performance bottleneck of web server. Please refer to code example in [future_example.py](example/future_example.py)
+We adopt [Future API](#future-api) to conduct multi-GPU benchmeark test locally in order to reduce the performance influence of web server. Please refer to code example in [future_example.py](example/future_example.py)
 
 
 | gpu_worker_num | Batched | ThreadedStreamer |Streamer|RedisStreamer
@@ -337,4 +335,7 @@ We adopt [Future API](#future-api) to conduct multi-GPU benchmeark test locally 
 |2|N/A|N/A|742.16|714.781|
 |4|N/A|N/A|1400.12|1356.47|
 
-It can be seen that the performance of ``service_streamer`` is almost linearly related to the number of gpu workers. And the efficiency of inter-process communication is slightly higher than that of redis communication.
+It can be seen that the performance of ``service_streamer`` is almost linearly related to the number of gpu workers. Communications of inter-process in ``service_streamer`` is more efficient than redis. 
+
+
+
