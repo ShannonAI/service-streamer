@@ -19,9 +19,9 @@
 
 <h2 align="center">What is Service Streamer ?</h2>
 
-A mini-batch collects data samples and is usually used in deep learning models. In this way, models can utilize the parallel computating of GPUs. Requests from users for machine learning models are usually discrete. There is an issue that computing processors are idle if conventional synchronous blocking message communication mechanism is used. And the wait time will be longer when there are enormous user requests in a short time. 
+A mini-batch collects data samples and is usually used in deep learning models. In this way, models can utilize the parallel computing capability of GPUs. However, requests from users for web services are usually discrete. If using conventional loop server or threaded server, GPUs will be idle dealing with one request at a time. And the latency time will be linearly increasing when there are concurrent user requests. 
 
-ServiceStreamer is a middleware for web service of machine learning applications. Queue requests from users are sampled into mini-batches. ServiceStreamer can enhance the overall performance of the system by improving the ratio of GPU utilization. 
+ServiceStreamer is a middleware for web service of machine learning applications. Queue requests from users are sampled into mini-batches. ServiceStreamer can significantly enhance the overall performance of the system by improving GPU utilization. 
 
 <h2 align="center">Highlights</h2>
 
