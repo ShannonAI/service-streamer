@@ -4,7 +4,7 @@
 
 
 <p align="center">
-  <a href="#what-is-service-streamer->What is Service Streamer ?</a> •
+  <a href="#what-is-service-streamer-">What is Service Streamer ?</a> •
   <a href="#Highlights">Highlights</a> •
   <a href="#Installation">Installation</a> •
   <a href="#develop-bert-service-in-5-mintues">Develop BERT Service in 5 Mintues</a> •
