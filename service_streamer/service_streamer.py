@@ -15,6 +15,9 @@ from redis import Redis
 
 from .managed_model import ManagedModel
 
+TIMEOUT = 1
+TIME_SLEEP = 0.001
+WORKER_TIMEOUT = 20
 logger = logging.getLogger(__name__)
 
 
@@ -78,7 +81,7 @@ class _BaseStreamer(object):
     def _send_request(self, task_id, request_id, model_input):
         raise NotImplementedError
 
-    def _recv_response(self, timeout=1):
+    def _recv_response(self, timeout=TIMEOUT):
         raise NotImplementedError
 
     def _input(self, batch: List) -> int:
@@ -103,18 +106,18 @@ class _BaseStreamer(object):
     def _loop_collect_result(self):
         logger.info("start _loop_collect_result")
         while True:
-            message = self._recv_response(timeout=1)
+            message = self._recv_response(timeout=TIMEOUT)
             if message:
                 (task_id, request_id, item) = message
                 future = self._future_cache[task_id]
                 future._append_result(request_id, item)
             else:
                 # todo
-                time.sleep(0.001)
+                time.sleep(TIME_SLEEP)
 
     def _output(self, task_id: int) -> List:
         future = self._future_cache[task_id]
-        batch_result = future.result(20)  # 20s timeout for any requests
+        batch_result = future.result(WORKER_TIMEOUT)
         return batch_result
 
     def submit(self, batch):
@@ -145,7 +148,7 @@ class _BaseStreamWorker(object):
             handled = self._run_once()
             if not handled:
                 # sleep if no data handled last time
-                time.sleep(0.001)
+                time.sleep(TIME_SLEEP)
 
     def model_predict(self, batch_input):
         # fairseq (gpu)
@@ -182,7 +185,7 @@ class _BaseStreamWorker(object):
             self._pid, batch_size, start_time, time.time() - start_time))
         return batch_size
 
-    def _recv_request(self, timeout=1):
+    def _recv_request(self, timeout=TIMEOUT):
         raise NotImplementedError
 
     def _send_response(self, client_id, task_id, request_id, model_input):
@@ -203,9 +206,9 @@ class ThreadedStreamer(_BaseStreamer):
     def _send_request(self, task_id, request_id, model_input):
         self._input_queue.put((0, task_id, request_id, model_input))
 
-    def _recv_response(self, timeout=1):
+    def _recv_response(self, timeout=TIMEOUT):
         try:
-            message = self._output_queue.get(timeout=1)
+            message = self._output_queue.get(timeout=timeout)
         except Empty:
             message = None
         return message
@@ -217,7 +220,7 @@ class ThreadedWorker(_BaseStreamWorker):
         self._request_queue = request_queue
         self._response_queue = response_queue
 
-    def _recv_request(self, timeout=1):
+    def _recv_request(self, timeout=TIMEOUT):
         try:
             item = self._request_queue.get(timeout=timeout)
         except Empty:
@@ -256,7 +259,7 @@ class Streamer(_BaseStreamer):
             self._worker_ps.append(p)
             self._worker_ready_events.append(e)
 
-    def _wait_for_worker_ready(self, timeout=20):
+    def _wait_for_worker_ready(self, timeout=WORKER_TIMEOUT):
         # wait for all workers finishing init
         for (i, e) in enumerate(self._worker_ready_events):
             # todo: select all events with timeout
@@ -266,9 +269,9 @@ class Streamer(_BaseStreamer):
     def _send_request(self, task_id, request_id, model_input):
         self._input_queue.put((0, task_id, request_id, model_input))
 
-    def _recv_response(self, timeout=1):
+    def _recv_response(self, timeout=TIMEOUT):
         try:
-            message = self._output_queue.get(timeout=1)
+            message = self._output_queue.get(timeout=timeout)
         except Empty:
             message = None
         return message
@@ -293,7 +296,7 @@ class StreamWorker(_BaseStreamWorker):
                 ready_event.set()  # tell father process that init is finished
         super().run_forever()
 
-    def _recv_request(self, timeout=1):
+    def _recv_request(self, timeout=TIMEOUT):
         try:
             item = self._request_queue.get(timeout=timeout)
         except Empty:
@@ -322,7 +325,7 @@ class RedisStreamer(_BaseStreamer):
     def _send_request(self, task_id, request_id, model_input):
         self._redis.send_request(task_id, request_id, model_input)
 
-    def _recv_response(self, timeout=1):
+    def _recv_response(self, timeout=TIMEOUT):
         return self._redis.recv_response(timeout)
 
 
@@ -351,15 +354,15 @@ class RedisWorker(_BaseStreamWorker):
     def _loop_recv_request(self):
         logger.info("[gpu worker %d] start loop_recv_request" % (os.getpid()))
         while True:
-            message = self._redis.recv_request(1)
+            message = self._redis.recv_request(timeout=TIMEOUT)
             if message:
                 (client_id, task_id, request_id, request_item) = json.loads(message)
                 self._requests_queue.put((client_id, task_id, request_id, request_item))
             else:
                 # sleep if recv timeout
-                time.sleep(0.001)
+                time.sleep(TIME_SLEEP)
 
-    def _recv_request(self, timeout=1):
+    def _recv_request(self, timeout=TIMEOUT):
         try:
             item = self._requests_queue.get(timeout=timeout)
         except Empty:
