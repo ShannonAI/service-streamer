@@ -28,6 +28,14 @@ def transform_image(image_bytes):
     return my_transforms(image).unsqueeze(0)
 
 
+def get_prediction(image_bytes):
+    tensor = transform_image(image_bytes=image_bytes).to(device)
+    outputs = model.forward(tensor)
+    _, y_hat = outputs.max(1)
+    predicted_idx = str(y_hat.item())
+    return imagenet_class_index[predicted_idx]
+
+
 def batch_prediction(image_bytes_batch):
     image_tensors = [transform_image(image_bytes=image_bytes) for image_bytes in image_bytes_batch]
     tensor = torch.cat(image_tensors).to(device)
@@ -41,4 +49,7 @@ if __name__ == "__main__":
     with open(r"cat.jpg", 'rb') as f:
         image_bytes = f.read()
 
-    print(batch_prediction([image_bytes] * 64))
+    result = get_prediction(image_bytes)
+    print(result)
+    batch_result = batch_prediction([image_bytes] * 64)
+    assert batch_result == [result] * 64
