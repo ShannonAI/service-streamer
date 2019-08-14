@@ -1,8 +1,12 @@
 # Vision Example for ServiceStreamer
 
+## tutorial
+
+[Develop Vision Service with Flask and service streamer](https://github.com/ShannonAI/service-streamer/wiki/Develop-Vision-Service-with-Flask-and-service-streamer)
+
 ## install 
 ```bash
-pip install torchvision pillow flask gevent
+pip install torchvision pillow flask gevent service_streamer
 ```
 
 ## start server
