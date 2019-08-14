@@ -6,7 +6,7 @@
 
 ## install 
 ```bash
-pip install torchvision pillow flask gevent service_streamer
+pip install torchvision pillow flask service_streamer
 ```
 
 ## start server
@@ -14,11 +14,11 @@ pip install torchvision pillow flask gevent service_streamer
 python app.py
 
 # test the api
-curl -F "file=@cat.jpg" http://localhost:5005/predict
+curl -F "file=@cat.jpg" http://127.0.0.1:5005/stream_predict
 {"class_id":"n02123045","class_name":"tabby"}
 ```
 
 ## benchmark
 ```bash
-./wrk -t 2 -c 128 -d 20s --timeout=20s -s file.lua http://127.0.0.1:5005/predict
+./wrk -c 128 -d 20s --timeout=20s -s file.lua http://127.0.0.1:5005/stream_predict
 ```
