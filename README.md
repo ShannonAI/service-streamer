@@ -2,6 +2,7 @@
 
 <p align="center">Boosting your Web Services of Deep Learning Applications. <a href="./README_zh.md">中文README</a></p>
 
+<h6 align="center">[![Build status](https://travis-ci.org/ShannonAI/service-streamer.svg?branch=master)](https://travis-ci.org/ShannonAI/service-streamer) </h6>
 
 <p align="center">
   <a href="#what-is-service-streamer-">What is Service Streamer ?</a> •
@@ -10,12 +11,9 @@
   <a href="#develop-bert-service-in-5-minutes">Develop BERT Service in 5 Minutes</a> •
   <a href="#API">API</a> •
   <a href="#Benchmark">Benchmark</a> •
-  
 </p>
 
-
 <h6 align="center">Made by ShannonAI • :globe_with_meridians: <a href="http://www.shannonai.com/">http://www.shannonai.com/</a></h6>
-
 
 <h2 align="center">What is Service Streamer ?</h2>
 
