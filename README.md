@@ -1,20 +1,28 @@
 <h1 align="center">Service Streamer</h1>
 
-<p align="center">Boosting your Web Services of Deep Learning Applications. <a href="./README_zh.md">中文README</a></p>
+<p align="center">
+Boosting your Web Services of Deep Learning Applications. 
+<a href="./README_zh.md">中文README</a>
+</p>
 
+<p align="center">
+</p>
 
 <p align="center">
   <a href="#what-is-service-streamer-">What is Service Streamer ?</a> •
-  <a href="#Highlights">Highlights</a> •
-  <a href="#Installation">Installation</a> •
+  <a href="#highlights">Highlights</a> •
+  <a href="#installation">Installation</a> •
   <a href="#develop-bert-service-in-5-minutes">Develop BERT Service in 5 Minutes</a> •
-  <a href="#API">API</a> •
-  <a href="#Benchmark">Benchmark</a> •
-  
+  <a href="#api">API</a> •
+  <a href="#benchmark">Benchmark</a> •
 </p>
 
-
-<h6 align="center">Made by ShannonAI • :globe_with_meridians: <a href="http://www.shannonai.com/">http://www.shannonai.com/</a></h6>
+<h6 align="center">
+    <a href="https://travis-ci.org/ShannonAI/service-streamer">
+        <img src="https://travis-ci.org/ShannonAI/service-streamer.svg?branch=master" alt="Build status">
+    </a>
+ • Made by ShannonAI • :globe_with_meridians: <a href="http://www.shannonai.com/">http://www.shannonai.com/</a>
+</h6>
 
 
 <h2 align="center">What is Service Streamer ?</h2>
