@@ -7,7 +7,7 @@
   <a href="#what-is-service-streamer-">What is Service Streamer ?</a> •
   <a href="#Highlights">Highlights</a> •
   <a href="#Installation">Installation</a> •
-  <a href="#develop-bert-service-in-5-mintues">Develop BERT Service in 5 Mintues</a> •
+  <a href="#develop-bert-service-in-5-minutes">Develop BERT Service in 5 Minutes</a> •
   <a href="#API">API</a> •
   <a href="#Benchmark">Benchmark</a> •
   
@@ -38,7 +38,7 @@ Install ServiceStream by using `pip`，requires **Python >= 3.5** :
 pip install service_streamer 
 ```
 
-<h2 align="center">Develop BERT Service in 5 Mintues</h2>
+<h2 align="center">Develop BERT Service in 5 Minutes</h2>
 
 We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. The service processes 1400 sentences per second.  
 
