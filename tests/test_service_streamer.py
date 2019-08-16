@@ -32,14 +32,14 @@ def setup_module(module):
 
 
 def test_threaded_streamer():
-    streamer = ThreadedStreamer(vision_model.batch_prediction, batch_size=16)
+    streamer = ThreadedStreamer(vision_model.batch_prediction, batch_size=8)
 
     output_raw = vision_model.batch_prediction(input_batch)
     output = streamer.predict(input_batch)
     assert output_raw == output
 
-    outputs_raw = vision_model.batch_prediction(input_batch * 55)
-    outputs = streamer.predict(input_batch * 55)
+    outputs_raw = vision_model.batch_prediction(input_batch * 11)
+    outputs = streamer.predict(input_batch * 11)
     assert outputs_raw == outputs
 
 
@@ -48,8 +48,8 @@ def test_managed_model():
     output = managed_model.predict(input_batch)
     assert output_raw == output
 
-    outputs_raw = vision_model.batch_prediction(input_batch * 16)
-    outputs = managed_model.predict(input_batch * 16)
+    outputs_raw = vision_model.batch_prediction(input_batch * 8)
+    outputs = managed_model.predict(input_batch * 8)
     assert outputs_raw == outputs
 
 
