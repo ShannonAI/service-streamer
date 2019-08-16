@@ -5,7 +5,7 @@ import os
 
 
 class ManagedModel(object):
-    def __init__(self, gpu_id):
+    def __init__(self, gpu_id=None):
         self.model = None
         self.gpu_id = gpu_id
         self.set_gpu_id(self.gpu_id)
