@@ -151,8 +151,7 @@ class _BaseStreamWorker(object):
                 time.sleep(TIME_SLEEP)
 
     def model_predict(self, batch_input):
-        # fairseq (gpu)
-        batch_result: List[str] = self._predict(batch_input)
+        batch_result = self._predict(batch_input)
         return batch_result
 
     def _run_once(self):
