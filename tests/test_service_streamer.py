@@ -5,10 +5,11 @@ import os
 
 from vision_case.model import VisionModel, DIR_PATH
 
-from service_streamer import ThreadedStreamer, ManagedModel, Streamer
+from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStreamer, RedisWorker
 
 multiprocessing.set_start_method("spawn", force=True)
 BATCH_SIZE = 8
+device = "cpu"  # in case ci environment do not have gpu
 
 input_batch = []
 vision_model = None
@@ -17,24 +18,24 @@ single_output = None
 batch_output = None
 
 
+class ManagedVisionModel(ManagedModel):
+
+    def init_model(self):
+        self.model = VisionModel(device=device)
+
+    def predict(self, batch):
+        return self.model.batch_prediction(batch)
+
+
 def setup_module(module):
     global input_batch, vision_model, managed_model, single_output, batch_output
 
-    device = "cpu"  # in case ci environment do not have gpu
     with open(os.path.join(DIR_PATH, "cat.jpg"), 'rb') as f:
         image_bytes = f.read()
     input_batch = [image_bytes]
     vision_model = VisionModel(device=device)
     single_output = vision_model.batch_prediction(input_batch)
     batch_output = vision_model.batch_prediction(input_batch * BATCH_SIZE)
-
-    class ManagedVisionModel(ManagedModel):
-
-        def init_model(self):
-            self.model = VisionModel(device=device)
-
-        def predict(self, batch):
-            return self.model.batch_prediction(batch)
 
     managed_model = ManagedVisionModel()
     managed_model.init_model()
@@ -79,3 +80,13 @@ def test_future_api():
     for future in xs:
         batch_predict.extend(future.result())
     assert batch_output == batch_predict
+
+
+def test_redis_streamer():
+    # Spawn releases 4 gpu worker processes
+    worker = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE)
+    single_predict = worker.model_predict(input_batch)
+    assert single_predict == single_output
+
+    batch_predict = worker.model_predict(input_batch * BATCH_SIZE)
+    assert batch_predict == batch_output

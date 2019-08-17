@@ -330,7 +330,7 @@ class RedisStreamer(_BaseStreamer):
 
 class RedisWorker(_BaseStreamWorker):
     def __init__(self, model_class, batch_size, max_latency=0.1, redis_broker="localhost:6379"):
-        assert issubclass(model_class, ManagedModel)
+        # assert issubclass(model_class, ManagedModel)
         super().__init__(model_class, batch_size, max_latency)
 
         self._redis_broker = redis_broker
