@@ -6,10 +6,15 @@ import os
 from vision_case.model import VisionModel, DIR_PATH
 
 from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStreamer, RedisWorker
+import torch
 
 multiprocessing.set_start_method("spawn", force=True)
 BATCH_SIZE = 8
-device = "cpu"  # in case ci environment do not have gpu
+
+if torch.cuda.is_available():
+    device = "gpu"
+else:
+    device = "cpu"  # in case ci environment do not have gpu
 
 input_batch = []
 vision_model = None
