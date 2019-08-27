@@ -12,7 +12,7 @@ multiprocessing.set_start_method("spawn", force=True)
 BATCH_SIZE = 8
 
 if torch.cuda.is_available():
-    device = "gpu"
+    device = "cuda"
 else:
     device = "cpu"  # in case ci environment do not have gpu
 
@@ -97,15 +97,12 @@ def test_redis_streamer():
     assert batch_predict == batch_output
 
 def test_mult_channel_streamer():
+    streamer = RedisStreamer()
+    streamer = RedisStreamer()
     worker = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE, request_queue='test', response_pb_prefix='test')
-    worker2 = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE, request_queue='test2', response_pb_prefix='test2')
-
     single_predict = worker.model_predict(input_batch)
-    single_predict2 = worker2.model_predict(input_batch)
     assert single_predict == single_output
-    assert single_predict2 == single_output
 
     batch_predict = worker.model_predict(input_batch * BATCH_SIZE)
-    batch_predict2 = worker2.model_predict(input_batch * BATCH_SIZE)
     assert batch_predict == batch_output
-    assert batch_predict2 == batch_output
+
