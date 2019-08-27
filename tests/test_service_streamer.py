@@ -12,7 +12,7 @@ multiprocessing.set_start_method("spawn", force=True)
 BATCH_SIZE = 8
 
 if torch.cuda.is_available():
-    device = "cuda"
+    device = "gpu"
 else:
     device = "cpu"  # in case ci environment do not have gpu
 
