@@ -2,15 +2,12 @@
 # Created by Meteorix at 2019/7/22
 
 import time
-import multiprocessing as mp
 from tqdm import tqdm
 from service_streamer import ThreadedStreamer, Streamer, RedisStreamer
 from example.bert_model import TextInfillingModel, ManagedBertModel
 
 
 def main():
-    mp.set_start_method("spawn", force=True)
-
     batch_size = 64
     model = TextInfillingModel()
     # streamer = ThreadedStreamer(model.predict, batch_size=max_batch, max_latency=0.1)
@@ -47,5 +44,4 @@ def main():
 
 
 if __name__ == '__main__':
-    mp.freeze_support()
     main()

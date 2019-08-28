@@ -2,6 +2,7 @@
 # Created by Meteorix at 2019/7/30
 from gevent import monkey; monkey.patch_all()
 from flask import Flask, request, jsonify
+from gevent.pywsgi import WSGIServer
 
 from service_streamer import Streamer
 from bert_model import ManagedBertModel
@@ -26,16 +27,6 @@ def stream_predict():
 
 
 if __name__ == "__main__":
-    import multiprocessing as mp
-    mp.freeze_support()
-    mp.set_start_method("spawn", force=True)
+    streamer = Streamer(ManagedBertModel, batch_size=64, max_latency=0.1, worker_num=4, cuda_devices=(0, 1, 2, 3))
 
-    streamer = Streamer(ManagedBertModel, batch_size=64, max_latency=0.1, worker_num=8, cuda_devices=(0, 1, 2, 3))
-
-    # ThreadedStreamer for comparison
-    # model = ManagedBertModel(None)
-    # model.init_model()
-    # streamer = ThreadedStreamer(model.predict, batch_size=64, max_latency=0.1)
-
-    from gevent.pywsgi import WSGIServer
     WSGIServer(("0.0.0.0", 5005), app).serve_forever()

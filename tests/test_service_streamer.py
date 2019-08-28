@@ -1,6 +1,5 @@
 # coding=utf-8
 # Created by Meteorix at 2019/8/16
-import multiprocessing
 import os
 
 from vision_case.model import VisionModel, DIR_PATH
@@ -8,7 +7,6 @@ from vision_case.model import VisionModel, DIR_PATH
 from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStreamer, RedisWorker
 import torch
 
-multiprocessing.set_start_method("spawn", force=True)
 BATCH_SIZE = 8
 
 if torch.cuda.is_available():
@@ -65,7 +63,7 @@ def test_managed_model():
 
 def test_spawned_streamer():
     # Spawn releases 4 gpu worker processes
-    streamer = Streamer(vision_model.batch_prediction, batch_size=8, worker_num=4)
+    streamer = Streamer(vision_model.batch_prediction, batch_size=8, worker_num=4, cuda_devices=(0, 1, 2, 3))
     single_predict = streamer.predict(input_batch)
     assert single_predict == single_output
 
