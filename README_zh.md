@@ -318,7 +318,7 @@ Flask多线程server已经成为性能瓶颈，故采用gevent server，代码�
 
 **Q:** 使用[allennlp](https://github.com/allenai/allennlp)训练得到的模型，在推理阶段，[Streamer](./service_streamer/service_streamer.py)中设置``worker_num=4``，为什么16核cpu全部跑满，且模型计算速度反而不如``worker_num=1``？
 
-**A:** 在多进程的模型推理计算时，如果模型依赖numpy进行数据处理，且numpy默认使用了多线程，则有可能造成cpu负载过大，使得多核计算速度反而不如单核。该类问题可以通过设置``numpy threads``环境变量解决。
+**A:** 在多进程的模型推理计算时，如果模型依赖numpy进行数据处理，且numpy默认使用了多线程，则有可能造成cpu负载过大，使得多核计算速度反而不如单核。该类问题在使用allennlp、spacy等第三方库时可能出现，可以通过设置``numpy threads``环境变量解决。
    ```python
    import os
    os.environ["MKL_NUM_THREADS"] = "1"  # export MKL_NUM_THREADS=1 
