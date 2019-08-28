@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(name='service_streamer',
-      version="0.1.0",
+      version="0.1.1",
       description='Boosting your web service of deep learning applications',
       long_description=long_description,
       long_description_content_type="text/markdown",
@@ -23,7 +23,6 @@ setup(name='service_streamer',
       install_requires=[
           'redis',
           'tqdm',
-          'msgpack',
       ],
       include_package_data=True,
       python_requires='>=3.5',
