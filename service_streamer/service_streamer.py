@@ -1,6 +1,5 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/13
-import msgpack
 import logging
 import multiprocessing as mp
 import os
@@ -8,6 +7,7 @@ import threading
 import time
 import uuid
 import weakref
+import pickle
 from queue import Queue, Empty
 from typing import List
 
@@ -357,7 +357,7 @@ class RedisWorker(_BaseStreamWorker):
         while True:
             message = self._redis.recv_request(timeout=TIMEOUT)
             if message:
-                (client_id, task_id, request_id, request_item) = msgpack.loads(message)
+                (client_id, task_id, request_id, request_item) = pickle.loads(message)
                 self._requests_queue.put((client_id, task_id, request_id, request_item))
             else:
                 # sleep if recv timeout
@@ -422,12 +422,12 @@ class _RedisClient(_RedisAgent):
 
     def send_request(self, task_id, request_id, model_input):
         message = (self._redis_id, task_id, request_id, model_input)
-        self._redis.lpush(self._redis_request_queue_name, msgpack.dumps(message))
+        self._redis.lpush(self._redis_request_queue_name, pickle.dumps(message))
 
     def recv_response(self, timeout):
         message = self._response_pb.get_message(timeout=timeout)
         if message:
-            return msgpack.loads(message["data"])
+            return pickle.loads(message["data"])
 
 
 class _RedisServer(_RedisAgent):
@@ -444,4 +444,4 @@ class _RedisServer(_RedisAgent):
     def send_response(self, client_id, task_id, request_id, model_output):
         message = (task_id, request_id, model_output)
         channel_name = self._response_pb_name(client_id)
-        self._redis.publish(channel_name, msgpack.dumps(message))
+        self._redis.publish(channel_name, pickle.dumps(message))
