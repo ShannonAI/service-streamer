@@ -98,8 +98,8 @@ def test_redis_streamer():
 
 def test_mult_channel_streamer():
     from service_streamer import RedisStreamer
-    worker1 = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE, request_queue='test1', response_pb_prefix='test1')
-    worker2 = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE, request_queue='test2', response_pb_prefix='test2')
+    worker1 = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE, prefix='test1')
+    worker2 = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE, prefix='test2')
     
     single_predict1 = worker1.model_predict(input_batch)
     assert single_predict1 == single_output
