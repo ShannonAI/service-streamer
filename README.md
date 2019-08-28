@@ -356,4 +356,26 @@ It can be seen that the performance of ``service_streamer`` is almost linearly r
    ```
    make sure putting environment variables before ``import numpy``.
 
+## RedisWorker and RedisStreamer
+RedisWorker supports subpub redis channels, which is useful when there are only one redis running on a machine and there are workers using different models(batches are incompatible!).
+
+To use it: assign prefix to specify channel
+```python3
+# worker
+run_redis_workers_forever(ManagedModel, 64, 0.1, worker_num=4, cuda_devices=(1,), prefix='test')
+
+# streamer
+streamer = RedisStreaemr(prefix='test')
+
+# predict
+output = streamer.predict(batch)
+```
+
+## Test
+For testing:
+first run ``run_redis_streamer1.py`` and ``run_redis_streamer2.py``(initializing two redis workers), then run ``pytest test_service_streamer.py``
+
+(One thing to note: the default timeout is 20s, so if there are not enough gpu resources, the test will fail.)
+
+
 

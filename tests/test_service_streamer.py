@@ -4,7 +4,7 @@ import os
 
 from vision_case.model import VisionModel, DIR_PATH
 
-from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStreamer, RedisWorker
+from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStreamer, RedisWorker, run_redis_workers_forever
 import torch
 
 BATCH_SIZE = 8
@@ -19,6 +19,9 @@ vision_model = None
 managed_model = None
 single_output = None
 batch_output = None
+input_batch2 = None
+single_output2 = None
+batch_output2 = None
 
 
 class ManagedVisionModel(ManagedModel):
@@ -31,14 +34,20 @@ class ManagedVisionModel(ManagedModel):
 
 
 def setup_module(module):
-    global input_batch, vision_model, managed_model, single_output, batch_output
+    global input_batch, vision_model, managed_model, single_output, batch_output, input_batch2, single_output2, batch_output2
 
     with open(os.path.join(DIR_PATH, "cat.jpg"), 'rb') as f:
         image_bytes = f.read()
+    with open(os.path.join(DIR_PATH, "dog.jpg"), 'rb') as f:
+        image_bytes2 = f.read()
     input_batch = [image_bytes]
     vision_model = VisionModel(device=device)
     single_output = vision_model.batch_prediction(input_batch)
     batch_output = vision_model.batch_prediction(input_batch * BATCH_SIZE)
+
+    input_batch2 = [image_bytes2]
+    single_output2 = vision_model.batch_prediction(input_batch2)
+    batch_output2 = vision_model.batch_prediction(input_batch2 * BATCH_SIZE)
 
     managed_model = ManagedVisionModel()
     managed_model.init_model()
@@ -87,26 +96,28 @@ def test_future_api():
 
 def test_redis_streamer():
     # Spawn releases 4 gpu worker processes
-    worker = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE)
-    single_predict = worker.model_predict(input_batch)
+    streamer = RedisStreamer(prefix='test')
+    single_predict = streamer.predict(input_batch)
     assert single_predict == single_output
 
-    batch_predict = worker.model_predict(input_batch * BATCH_SIZE)
+    batch_predict = streamer.predict(input_batch * BATCH_SIZE)
     assert batch_predict == batch_output
 
+
 def test_mult_channel_streamer():
-    from service_streamer import RedisStreamer
-    worker1 = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE, prefix='test1')
-    worker2 = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE, prefix='test2')
-    
-    single_predict1 = worker1.model_predict(input_batch)
-    assert single_predict1 == single_output
+    streamer_1 = RedisStreamer(prefix='test')
+    streamer_2 = RedisStreamer(prefix='test_1')
 
-    batch_predict1 = worker1.model_predict(input_batch * BATCH_SIZE)
-    assert batch_predict1 == batch_output
+    single_predict = streamer_1.predict(input_batch)
+    assert single_predict == single_output
 
-    single_predict2 = worker2.model_predict(input_batch)
-    assert single_predict2 == single_output
+    batch_predict = streamer_1.predict(input_batch * BATCH_SIZE)
+    assert batch_predict == batch_output
 
-    batch_predict2 = worker2.model_predict(input_batch * BATCH_SIZE)
-    assert batch_predict2 == batch_output
+
+    single_predict2 = streamer_2.predict(input_batch2)
+    assert single_predict2 == single_output2
+
+    batch_predict2 = streamer_2.predict(input_batch2 * BATCH_SIZE)
+    assert batch_predict2 == batch_output2
+
