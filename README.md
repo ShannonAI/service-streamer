@@ -128,9 +128,7 @@ We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. Th
 
 
     ```python
-    import multiprocessing; multiprocessing.set_start_method("spawn", force=True)
     from service_streamer import ManagedModel, Streamer
-    multiprocessing.set_start_method("spawn", force=True)
 
     class ManagedBertModel(ManagedModel):
 
@@ -180,7 +178,6 @@ Start web server on multi-threading (or coordination). Your server can usually a
 The performance of web server (QPS) in practice is much higher than that of GPU model. We also support one web server with multiple GPU worker processes.
 
 ```python
-import multiprocessing; multiprocessing.set_start_method("spawn", force=True)
 from service_streamer import Streamer
 
 # Spawn releases 4 gpu worker processes
@@ -214,7 +211,6 @@ The above method is simple to define, but the main process initialization model 
 Therefore, we have provided the ```ManagedModel``` class to facilitate model lazy initialization and migration while supporting multiple GPUs.
 
 ```python
-import multiprocessing; multiprocessing.set_start_method("spawn", force=True)
 from service_streamer import ManagedModel
 
 class ManagedBertModel(ManagedModel):

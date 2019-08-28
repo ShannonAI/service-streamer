@@ -26,11 +26,11 @@ def stream_predict():
 
 
 if __name__ == "__main__":
-    # for ThreadedStreamer/Streamer
-    mp.freeze_support()
-    mp.set_start_method("spawn", force=True)
     model = Model()
+    # start child thread as worker
     streamer = ThreadedStreamer(model.predict, batch_size=64, max_latency=0.1)
-    # streamer = Streamer(model.predict, batch_size=64, max_latency=0.1)
+
+    # spawn child process as worker
+    # streamer = Streamer(ManagedBertModel, batch_size=64, max_latency=0.1)
 
     app.run(port=5005, debug=False)

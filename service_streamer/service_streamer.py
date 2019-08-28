@@ -1,7 +1,7 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/13
 import logging
-import multiprocessing as mp
+import multiprocessing
 import os
 import threading
 import time
@@ -19,6 +19,8 @@ TIMEOUT = 1
 TIME_SLEEP = 0.001
 WORKER_TIMEOUT = 20
 logger = logging.getLogger(__name__)
+logger.setLevel("INFO")
+mp = multiprocessing.get_context("spawn")
 
 
 class Future(object):
