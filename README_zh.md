@@ -9,7 +9,7 @@
   <a href="#五分钟搭建bert服务">五分钟搭建BERT服务</a> •
   <a href="#api介绍">API介绍</a> •
   <a href="#基准测试">基准测试</a> •
-  
+  <a href="#常见问题">常见问题</a> •
 </p>
 
 
@@ -313,3 +313,17 @@ Flask多线程server已经成为性能瓶颈，故采用gevent server，代码�
 |4|N/A|N/A|1400.12|1356.47|
 
 可以看出``service_streamer``的性能跟gpu worker数量几乎成线性关系，其中进程间通信的效率略高于redis通信。
+
+<h2 align="center">常见问题</h2>
+
+**Q:** 使用[allennlp](https://github.com/allenai/allennlp)训练得到的模型，在推理阶段，[Streamer](./service_streamer/service_streamer.py)中设置``worker_num=4``，为什么16核cpu全部跑满，且模型计算速度反而不如``worker_num=1``？
+
+**A:** 在多进程的模型推理计算时，如果模型依赖numpy进行数据处理，且numpy默认使用了多线程，则有可能造成cpu负载过大，使得多核计算速度反而不如单核。该类问题可以通过设置``numpy threads``环境变量解决。
+   ```python
+   import os
+   os.environ["MKL_NUM_THREADS"] = "1"  # export MKL_NUM_THREADS=1 
+   os.environ["NUMEXPR_NUM_THREADS"] = "1"  # export NUMEXPR_NUM_THREADS=1 
+   os.environ["OMP_NUM_THREADS"] = "1"  # export OMP_NUM_THREADS=1
+   import numpy
+   ```
+   注意要将``os``环境变量的设置放在``import numpy``之前。
