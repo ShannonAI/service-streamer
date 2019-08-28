@@ -234,14 +234,15 @@ class ThreadedWorker(_BaseStreamWorker):
 
 
 class Streamer(_BaseStreamer):
-    def __init__(self, predict_function_or_model, batch_size, max_latency=0.1, worker_num=1, cuda_devices=None):
+    def __init__(self, predict_function_or_model, batch_size, max_latency=0.1, worker_num=1,
+                 cuda_devices=None, model_init_args=None, model_init_kwargs=None):
         super().__init__()
         self.worker_num = worker_num
         self.cuda_devices = cuda_devices
         self._input_queue = mp.Queue()
         self._output_queue = mp.Queue()
         self._worker = StreamWorker(predict_function_or_model, batch_size, max_latency, self._input_queue,
-                                    self._output_queue)
+                                    self._output_queue, model_init_args, model_init_kwargs)
         self._worker_ps = []
         self._worker_ready_events = []
         self._setup_gpu_worker()
@@ -279,10 +280,13 @@ class Streamer(_BaseStreamer):
 
 
 class StreamWorker(_BaseStreamWorker):
-    def __init__(self, predict_function_or_model, batch_size, max_latency, request_queue, response_queue):
+    def __init__(self, predict_function_or_model, batch_size, max_latency, request_queue, response_queue,
+                 model_init_args, model_init_kwargs):
         super().__init__(predict_function_or_model, batch_size, max_latency)
         self._request_queue = request_queue
         self._response_queue = response_queue
+        self._model_init_args = model_init_args or []
+        self._model_init_kwargs = model_init_kwargs or {}
 
     def run_forever(self, gpu_id=None, ready_event=None):
         # if it is a managed model, lazy init model after forked & set CUDA_VISIBLE_DEVICES
@@ -290,7 +294,7 @@ class StreamWorker(_BaseStreamWorker):
             model_class = self._predict
             logger.info("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
             self._model = model_class(gpu_id)
-            self._model.init_model()
+            self._model.init_model(*self._model_init_args, **self._model_init_kwargs)
             logger.info("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
             self._predict = self._model.predict
             if ready_event:
@@ -332,11 +336,14 @@ class RedisStreamer(_BaseStreamer):
 
 
 class RedisWorker(_BaseStreamWorker):
-    def __init__(self, model_class, batch_size, max_latency=0.1, redis_broker="localhost:6379", prefix=''):
+    def __init__(self, model_class, batch_size, max_latency=0.1,
+                 redis_broker="localhost:6379", prefix='', model_init_args=None, model_init_kwargs=None):
         # assert issubclass(model_class, ManagedModel)
         super().__init__(model_class, batch_size, max_latency)
         
         self.prefix = prefix
+        self._model_init_args = model_init_args or []
+        self._model_init_kwargs = model_init_kwargs or {}
         self._redis_broker = redis_broker
         self._redis = _RedisServer(0, self._redis_broker, self.prefix)
         self._requests_queue = Queue()
@@ -349,7 +356,7 @@ class RedisWorker(_BaseStreamWorker):
         logger.info("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
         model_class = self._predict
         self._model = model_class(gpu_id)
-        self._model.init_model()
+        self._model.init_model(*self._model_init_args, **self._model_init_kwargs)
         self._predict = self._model.predict
 
         super().run_forever()
@@ -384,7 +391,7 @@ def _setup_redis_worker_and_runforever(model_class, batch_size, max_latency, gpu
 
 def run_redis_workers_forever(model_class, batch_size, max_latency=0.1,
                               worker_num=1, cuda_devices=None, redis_broker="localhost:6379",
-                              prefix=''):
+                              prefix='', model_init_args=None, model_init_kwargs=None):
     procs = []
     for i in range(worker_num):
         if cuda_devices is not None:
