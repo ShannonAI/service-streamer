@@ -114,9 +114,7 @@ pip install service_streamer
 4. 最后，我们利用``Streamer``封装模型，启动多个GPU worker，充分利用多卡性能实现每秒1000+句(80倍QPS)
 
     ```python
-    import multiprocessing
     from service_streamer import ManagedModel, Streamer
-    multiprocessing.set_start_method("spawn", force=True)
 
     class ManagedBertModel(ManagedModel):
 
@@ -167,7 +165,6 @@ outpus = streamer.predict(batch_inputs)
 实际项目中web server的性能(QPS)远高于GPU模型的性能，所以我们支持一个web server搭配多个GPU worker进程。
 
 ```python
-import multiprocessing; multiprocessing.set_start_method("spawn", force=True)
 from service_streamer import Streamer
 
 # spawn出4个gpu worker进程
