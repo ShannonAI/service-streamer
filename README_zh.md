@@ -351,9 +351,9 @@ if __name__ == "__main__":
 from service_streamer import RedisStreamer
 
 streamer_1 = RedisStreaemr(prefix='channel_1')
-streamer_2 = RedisStreaemr(prefix='channel_1')
+streamer_2 = RedisStreaemr(prefix='channel_2')
 
 # predict
 output_1 = streamer_1.predict(batch)
-output_2 = streamer_1.predict(batch)
+output_2 = streamer_2.predict(batch)
 ```
