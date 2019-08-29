@@ -17,8 +17,6 @@ else:
     device = "cpu"  # in case ci environment do not have gpu
 
 
-
-
 class ManagedVisionDensenetModel(ManagedModel):
     def init_model(self):
         self.model = VisionDensenetModel(device=device)
@@ -34,8 +32,8 @@ class ManagedVisionResNetModel(ManagedModel):
     def predict(self, batch):
         return self.model.batch_prediction(batch)
 
-class TestClass:
 
+class TestClass:
 
     def setup_class(self):
         with open(os.path.join(DIR_PATH, "cat.jpg"), 'rb') as f:
@@ -55,22 +53,20 @@ class TestClass:
         self.managed_model = ManagedVisionDensenetModel()
         self.managed_model.init_model()
 
-
     def test_init_redisworkers(self):
         from multiprocessing import freeze_support
         freeze_support()
 
         thread = threading.Thread(target=run_redis_workers_forever, args=(
-        ManagedVisionDensenetModel, 8, 0.1, 2, (0, 1, 2, 3), "localhost:6379", ''), daemon=True)
+            ManagedVisionDensenetModel, 8, 0.1, 2, (0, 1, 2, 3), "localhost:6379", ''), daemon=True)
         thread1 = threading.Thread(target=run_redis_workers_forever, args=(
-        ManagedVisionDensenetModel, 8, 0.1, 2, (0, 1, 2, 3), "localhost:6379", 'channel_for_densenet'), daemon=True)
+            ManagedVisionDensenetModel, 8, 0.1, 2, (0, 1, 2, 3), "localhost:6379", 'channel_for_densenet'), daemon=True)
         thread2 = threading.Thread(target=run_redis_workers_forever, args=(
-        ManagedVisionResNetModel, 8, 0.1, 2, (0, 1, 2, 3), "localhost:6379", 'channel_for_resnet'), daemon=True)
-        
+            ManagedVisionResNetModel, 8, 0.1, 2, (0, 1, 2, 3), "localhost:6379", 'channel_for_resnet'), daemon=True)
+
         thread.start()
         thread1.start()
         thread2.start()
-
 
     def test_threaded_streamer(self):
         streamer = ThreadedStreamer(self.vision_model.batch_prediction, batch_size=8)
@@ -80,14 +76,12 @@ class TestClass:
         batch_predict = streamer.predict(self.input_batch * BATCH_SIZE)
         assert batch_predict == self.batch_output
 
-
     def test_managed_model(self):
         single_predict = self.managed_model.predict(self.input_batch)
         assert single_predict == self.single_output
 
         batch_predict = self.managed_model.predict(self.input_batch * BATCH_SIZE)
         assert batch_predict == self.batch_output
-
 
     def test_spawned_streamer(self):
         # Spawn releases 4 gpu worker processes
@@ -97,7 +91,6 @@ class TestClass:
 
         batch_predict = streamer.predict(self.input_batch * BATCH_SIZE)
         assert batch_predict == self.batch_output
-
 
     def test_future_api(self):
         streamer = ThreadedStreamer(self.vision_model.batch_prediction, batch_size=8)
@@ -110,8 +103,7 @@ class TestClass:
         # Get all instances of future object and wait for asynchronous responses.
         for future in xs:
             batch_predict.extend(future.result())
-        assert  batch_predict == self.batch_output
-
+        assert batch_predict == self.batch_output
 
     def test_redis_streamer(self):
         # Spawn releases 4 gpu worker processes
@@ -121,7 +113,6 @@ class TestClass:
 
         batch_predict = streamer.predict(self.input_batch * BATCH_SIZE)
         assert batch_predict == self.batch_output
-
 
     def test_mult_channel_streamer(self):
         streamer_1 = RedisStreamer(prefix='channel_for_densenet')
