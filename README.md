@@ -361,13 +361,15 @@ It can be seen that the performance of ``service_streamer`` is almost linearly r
 **A:** Specify the prefix when initializing worker and streamer, each streamer will use a unique channel.  
 
 example of initialiazing workers:  
-    ```python3
+    
+    ```python
     run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_1')
     run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_2')
     ```
 
 example of using streamer to have result:  
-    ```python3
+    
+    ```python
     streamer_1 = RedisStreaemr(prefix='channel_1')
     streamer_2 = RedisStreaemr(prefix='channel_1')
 
