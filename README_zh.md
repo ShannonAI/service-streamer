@@ -345,7 +345,7 @@ if __name__ == "__main__":
     run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_2')
 ```
 
-接下来定义在另一个文件中streamer并得到模型结果:  
+接下来在另一个文件中定义streamer并得到模型结果:  
     
 ```python
 from service_streamer import RedisStreamer
