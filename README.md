@@ -15,6 +15,7 @@ Boosting your Web Services of Deep Learning Applications.
   <a href="#develop-bert-service-in-5-minutes">Develop BERT Service in 5 Minutes</a> •
   <a href="#api">API</a> •
   <a href="#benchmark">Benchmark</a> •
+  <a href="#faq">FAQ</a> •
 </p>
 
 <h6 align="center">
@@ -341,5 +342,18 @@ We adopt [Future API](#future-api) to conduct multi-GPU benchmeark test locally 
 
 It can be seen that the performance of ``service_streamer`` is almost linearly related to the number of gpu workers. Communications of inter-process in ``service_streamer`` is more efficient than redis. 
 
+<h2 align="center">FAQ</h2>
+
+**Q:** using a model trained from [allennlp](https://github.com/allenai/allennlp),set ``worker_num=4`` of [Streamer](./service_streamer/service_streamer.py) during inference, what's the reason that 16-core cpu is full and speed is slower than [Streamer](./service_streamer/service_streamer.py) with ``worker_num=1``?
+
+**A:** for multi-process inference, if the model process data using numpy with multi-thread, it may cause cpu overheads, resulting in a multi-core computing speed that slower than a single core. This kind of problem may occur when using third-party libraries such as alennlp, spacy, etc. It could be solved by setting ``numpy threads``environment variables.
+   ```python
+   import os
+   os.environ["MKL_NUM_THREADS"] = "1"  # export MKL_NUM_THREADS=1 
+   os.environ["NUMEXPR_NUM_THREADS"] = "1"  # export NUMEXPR_NUM_THREADS=1 
+   os.environ["OMP_NUM_THREADS"] = "1"  # export OMP_NUM_THREADS=1
+   import numpy
+   ```
+   make sure putting environment variables before ``import numpy``.
 
 
