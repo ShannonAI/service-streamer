@@ -357,7 +357,9 @@ It can be seen that the performance of ``service_streamer`` is almost linearly r
    make sure putting environment variables before ``import numpy``.
 
 ## RedisWorker and RedisStreamer
-RedisWorker supports subpub redis channels, which is useful when there are only one redis running on a machine and there are workers using different models(batches are incompatible!).
+RedisWorker and RedisStreamer use redis as task queue:
+if there are only one model to run, it is unnecessary to specify prefix
+if there there are only one redis running on a machine and there are workers using different models(batches are incompatible), specifying ``prefix`` may be useful
 
 To use it: assign prefix to specify channel
 ```python3

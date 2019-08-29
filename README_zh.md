@@ -327,3 +327,21 @@ Flask多线程server已经成为性能瓶颈，故采用gevent server，代码�
    import numpy
    ```
    注意要将``os``环境变量的设置放在``import numpy``之前。
+
+## RedisWorker and RedisStreamer
+使用Redis作为任务队列
+如果worker只加载了一种模型，没有必要指定prefix
+如果有多种worker加载了多种模型，需要指定prefix
+
+使用方法：
+```python3
+# worker
+run_redis_workers_forever(ManagedModel, 64, 0.1, worker_num=4, cuda_devices=(1,), prefix='test')
+run_redis_workers_forever(ManagedModel, 64, 0.1, worker_num=4, cuda_devices=(1,), prefix='test2')  # another channel
+
+# streamer
+streamer = RedisStreaemr(prefix='test')
+
+# predict
+output = streamer.predict(batch)
+```
