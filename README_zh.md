@@ -328,20 +328,22 @@ Flask多线程server已经成为性能瓶颈，故采用gevent server，代码�
    ```
    注意要将``os``环境变量的设置放在``import numpy``之前。
 
-## RedisWorker and RedisStreamer
-使用Redis作为任务队列
-如果worker只加载了一种模型，没有必要指定prefix
-如果有多种worker加载了多种模型，需要指定prefix
+**Q:** 使用RedisStreamer时，在共用同一个redis broker的情况下，如果有不止一个模型，各种待处理的batch可能会有个不同的结构，从而造成冲突怎么办？
 
-使用方法：
-```python3
-# worker
-run_redis_workers_forever(ManagedModel, 64, 0.1, worker_num=4, cuda_devices=(1,), prefix='test')
-run_redis_workers_forever(ManagedModel, 64, 0.1, worker_num=4, cuda_devices=(1,), prefix='test2')  # another channel
+**A:** 指定prefix参数，此时会使用redis的不同频道，从而避免冲突
 
-# streamer
-streamer = RedisStreaemr(prefix='test')
+启动worker的方法:  
+    ```python3
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_1')
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_2')
+    ```
 
-# predict
-output = streamer.predict(batch)
-```
+接下来定义streamer并得到模型结果:  
+    ```python3
+    streamer_1 = RedisStreaemr(prefix='channel_1')
+    streamer_2 = RedisStreaemr(prefix='channel_1')
+
+    # predict
+    output_1 = streamer_1.predict(batch)
+    output_2 = streamer_1.predict(batch)
+    ```

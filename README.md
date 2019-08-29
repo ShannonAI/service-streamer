@@ -356,21 +356,24 @@ It can be seen that the performance of ``service_streamer`` is almost linearly r
    ```
    make sure putting environment variables before ``import numpy``.
 
-## RedisWorker and RedisStreamer
-RedisWorker and RedisStreamer use redis as task queue:
-if there are only one model to run, it is unnecessary to specify prefix
-if there there are only one redis running on a machine and there are workers using different models(batches are incompatible), specifying ``prefix`` may be useful
+**Q:** When using RedisStreamer, if there are only one redis broker and more than one model, the input batches may have different structure. How to deal with such situation?  
 
-To use it: assign prefix to specify channel
-```python3
-# worker
-run_redis_workers_forever(ManagedModel, 64, 0.1, worker_num=4, cuda_devices=(1,), prefix='test')
+**A:** Specify the prefix when initializing worker and streamer, each streamer will use a unique channel.  
 
-# streamer
-streamer = RedisStreaemr(prefix='test')
+example of initialiazing workers:  
+    ```python3
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_1')
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_2')
+    ```
 
-# predict
-output = streamer.predict(batch)
-```
+example of using streamer to have result:  
+    ```python3
+    streamer_1 = RedisStreaemr(prefix='channel_1')
+    streamer_2 = RedisStreaemr(prefix='channel_1')
+
+    # predict
+    output_1 = streamer_1.predict(batch)
+    output_2 = streamer_1.predict(batch)
+    ```
 
 
