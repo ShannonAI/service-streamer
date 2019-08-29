@@ -1,112 +1,131 @@
 # coding=utf-8
 # Created by Meteorix at 2019/8/16
 import os
+import threading
 
-from vision_case.model import VisionModel, DIR_PATH
+from vision_case.model import VisionDensenetModel, VisionResNetModel, DIR_PATH
 
-from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStreamer, RedisWorker
+from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStreamer, RedisWorker, \
+    run_redis_workers_forever
 import torch
 
-BATCH_SIZE = 8
+BATCH_SIZE = 2
 
 if torch.cuda.is_available():
     device = "cuda"
 else:
     device = "cpu"  # in case ci environment do not have gpu
 
-input_batch = []
-vision_model = None
-managed_model = None
-single_output = None
-batch_output = None
 
-
-class ManagedVisionModel(ManagedModel):
-
+class ManagedVisionDensenetModel(ManagedModel):
     def init_model(self):
-        self.model = VisionModel(device=device)
+        self.model = VisionDensenetModel(device=device)
 
     def predict(self, batch):
         return self.model.batch_prediction(batch)
 
 
-def setup_module(module):
-    global input_batch, vision_model, managed_model, single_output, batch_output
+class ManagedVisionResNetModel(ManagedModel):
+    def init_model(self):
+        self.model = VisionResNetModel(device=device)
 
-    with open(os.path.join(DIR_PATH, "cat.jpg"), 'rb') as f:
-        image_bytes = f.read()
-    input_batch = [image_bytes]
-    vision_model = VisionModel(device=device)
-    single_output = vision_model.batch_prediction(input_batch)
-    batch_output = vision_model.batch_prediction(input_batch * BATCH_SIZE)
-
-    managed_model = ManagedVisionModel()
-    managed_model.init_model()
+    def predict(self, batch):
+        return self.model.batch_prediction(batch)
 
 
-def test_threaded_streamer():
-    streamer = ThreadedStreamer(vision_model.batch_prediction, batch_size=8)
-    single_predict = streamer.predict(input_batch)
-    assert single_predict == single_output
+class TestClass:
 
-    batch_predict = streamer.predict(input_batch * BATCH_SIZE)
-    assert batch_predict == batch_output
+    def setup_class(self):
+        with open(os.path.join(DIR_PATH, "cat.jpg"), 'rb') as f:
+            image_bytes = f.read()
+        self.input_batch = [image_bytes]
+        self.vision_model = VisionDensenetModel(device=device)
+        self.single_output = self.vision_model.batch_prediction(self.input_batch)
+        self.batch_output = self.vision_model.batch_prediction(self.input_batch * BATCH_SIZE)
 
+        with open(os.path.join(DIR_PATH, "dog.jpg"), 'rb') as f:
+            image_bytes2 = f.read()
+        self.input_batch2 = [image_bytes2]
+        self.vision_model2 = VisionResNetModel(device=device)
+        self.single_output2 = self.vision_model2.batch_prediction(self.input_batch2)
+        self.batch_output2 = self.vision_model2.batch_prediction(self.input_batch2 * BATCH_SIZE)
 
-def test_managed_model():
-    single_predict = managed_model.predict(input_batch)
-    assert single_predict == single_output
+        self.managed_model = ManagedVisionDensenetModel()
+        self.managed_model.init_model()
 
-    batch_predict = managed_model.predict(input_batch * BATCH_SIZE)
-    assert batch_predict == batch_output
+    def test_init_redisworkers(self):
+        from multiprocessing import freeze_support
+        freeze_support()
 
+        thread = threading.Thread(target=run_redis_workers_forever, args=(
+            ManagedVisionDensenetModel, 8, 0.1, 2, (0, 1, 2, 3), "localhost:6379", ''), daemon=True)
+        thread1 = threading.Thread(target=run_redis_workers_forever, args=(
+            ManagedVisionDensenetModel, 8, 0.1, 2, (0, 1, 2, 3), "localhost:6379", 'channel_for_densenet'), daemon=True)
+        thread2 = threading.Thread(target=run_redis_workers_forever, args=(
+            ManagedVisionResNetModel, 8, 0.1, 2, (0, 1, 2, 3), "localhost:6379", 'channel_for_resnet'), daemon=True)
 
-def test_spawned_streamer():
-    # Spawn releases 4 gpu worker processes
-    streamer = Streamer(vision_model.batch_prediction, batch_size=8, worker_num=4, cuda_devices=(0, 1, 2, 3))
-    single_predict = streamer.predict(input_batch)
-    assert single_predict == single_output
+        thread.start()
+        thread1.start()
+        thread2.start()
 
-    batch_predict = streamer.predict(input_batch * BATCH_SIZE)
-    assert batch_predict == batch_output
+    def test_threaded_streamer(self):
+        streamer = ThreadedStreamer(self.vision_model.batch_prediction, batch_size=8)
+        single_predict = streamer.predict(self.input_batch)
+        assert single_predict == self.single_output
 
+        batch_predict = streamer.predict(self.input_batch * BATCH_SIZE)
+        assert batch_predict == self.batch_output
 
-def test_future_api():
-    streamer = ThreadedStreamer(vision_model.batch_prediction, batch_size=8)
+    def test_managed_model(self):
+        single_predict = self.managed_model.predict(self.input_batch)
+        assert single_predict == self.single_output
 
-    xs = []
-    for i in range(BATCH_SIZE):
-        future = streamer.submit(input_batch)
-        xs.append(future)
-    batch_predict = []
-    # Get all instances of future object and wait for asynchronous responses.
-    for future in xs:
-        batch_predict.extend(future.result())
-    assert batch_output == batch_predict
+        batch_predict = self.managed_model.predict(self.input_batch * BATCH_SIZE)
+        assert batch_predict == self.batch_output
 
+    def test_spawned_streamer(self):
+        # Spawn releases 4 gpu worker processes
+        streamer = Streamer(self.vision_model.batch_prediction, batch_size=8, worker_num=4, cuda_devices=(0, 1, 2, 3))
+        single_predict = streamer.predict(self.input_batch)
+        assert single_predict == self.single_output
 
-def test_redis_streamer():
-    # Spawn releases 4 gpu worker processes
-    worker = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE)
-    single_predict = worker.model_predict(input_batch)
-    assert single_predict == single_output
+        batch_predict = streamer.predict(self.input_batch * BATCH_SIZE)
+        assert batch_predict == self.batch_output
 
-    batch_predict = worker.model_predict(input_batch * BATCH_SIZE)
-    assert batch_predict == batch_output
+    def test_future_api(self):
+        streamer = ThreadedStreamer(self.vision_model.batch_prediction, batch_size=8)
 
-def test_mult_channel_streamer():
-    from service_streamer import RedisStreamer
-    worker1 = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE, prefix='test1')
-    worker2 = RedisWorker(managed_model.predict, batch_size=BATCH_SIZE, prefix='test2')
-    
-    single_predict1 = worker1.model_predict(input_batch)
-    assert single_predict1 == single_output
+        xs = []
+        for i in range(BATCH_SIZE):
+            future = streamer.submit(self.input_batch)
+            xs.append(future)
+        batch_predict = []
+        # Get all instances of future object and wait for asynchronous responses.
+        for future in xs:
+            batch_predict.extend(future.result())
+        assert batch_predict == self.batch_output
 
-    batch_predict1 = worker1.model_predict(input_batch * BATCH_SIZE)
-    assert batch_predict1 == batch_output
+    def test_redis_streamer(self):
+        # Spawn releases 4 gpu worker processes
+        streamer = RedisStreamer()
+        single_predict = streamer.predict(self.input_batch)
+        assert single_predict == self.single_output
 
-    single_predict2 = worker2.model_predict(input_batch)
-    assert single_predict2 == single_output
+        batch_predict = streamer.predict(self.input_batch * BATCH_SIZE)
+        assert batch_predict == self.batch_output
 
-    batch_predict2 = worker2.model_predict(input_batch * BATCH_SIZE)
-    assert batch_predict2 == batch_output
+    def test_mult_channel_streamer(self):
+        streamer_1 = RedisStreamer(prefix='channel_for_densenet')
+        streamer_2 = RedisStreamer(prefix='channel_for_resnet')
+
+        single_predict = streamer_1.predict(self.input_batch)
+        assert single_predict == self.single_output
+
+        batch_predict = streamer_1.predict(self.input_batch * BATCH_SIZE)
+        assert batch_predict == self.batch_output
+
+        single_predict2 = streamer_2.predict(self.input_batch2)
+        assert single_predict2 == self.single_output2
+
+        batch_predict2 = streamer_2.predict(self.input_batch2 * BATCH_SIZE)
+        assert batch_predict2 == self.batch_output2

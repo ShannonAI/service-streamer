@@ -356,4 +356,34 @@ It can be seen that the performance of ``service_streamer`` is almost linearly r
    ```
    make sure putting environment variables before ``import numpy``.
 
+**Q:** When using RedisStreamer, if there are only one redis broker and more than one model, the input batches may have different structure. How to deal with such situation?  
+
+**A:** Specify the prefix when initializing worker and streamer, each streamer will use a unique channel.  
+
+example of initialiazing workers:  
+    
+```python
+from service_streamer import run_redis_workers_forever
+from bert_model import ManagedBertModel
+
+if __name__ == "__main__":
+    from multiprocessing import freeze_support
+    freeze_support()
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_1')
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_2')
+```
+
+example of using streamer to have result:  
+    
+```python
+from service_streamer import RedisStreamer
+
+streamer_1 = RedisStreaemr(prefix='channel_1')
+streamer_2 = RedisStreaemr(prefix='channel_2')
+
+# predict
+output_1 = streamer_1.predict(batch)
+output_2 = streamer_2.predict(batch)
+```
+
 
