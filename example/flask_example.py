@@ -3,7 +3,7 @@
 
 import multiprocessing as mp
 from flask import Flask, request, jsonify
-from service_streamer import ThreadedStreamer
+from service_streamer import ThreadedStreamer, Streamer
 from bert_model import TextInfillingModel as Model
 
 app = Flask(__name__)
@@ -31,6 +31,6 @@ if __name__ == "__main__":
     streamer = ThreadedStreamer(model.predict, batch_size=64, max_latency=0.1)
 
     # spawn child process as worker
-    # streamer = Streamer(ManagedBertModel, batch_size=64, max_latency=0.1)
+    # streamer = Streamer(model.predict, batch_size=64, max_latency=0.1)
 
     app.run(port=5005, debug=False)
