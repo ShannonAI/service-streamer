@@ -373,9 +373,7 @@ output = streamer.predict(batch)
 
 ## Test
 For testing:
-first run ``run_redis_streamer1.py`` and ``run_redis_streamer2.py``(initializing two redis workers), then run ``pytest test_service_streamer.py``
-
-(One thing to note: the default timeout is 20s, so if there are not enough gpu resources, the test will fail.)
+run ``pytest test_service_streamer.py``
 
 
 

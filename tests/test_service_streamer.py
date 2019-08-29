@@ -1,8 +1,9 @@
 # coding=utf-8
 # Created by Meteorix at 2019/8/16
 import os
+import threading
 
-from vision_case.model import VisionModel, DIR_PATH
+from vision_case.model import VisionModel, VisionModel2, DIR_PATH
 
 from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStreamer, RedisWorker, run_redis_workers_forever
 import torch
@@ -25,9 +26,16 @@ batch_output2 = None
 
 
 class ManagedVisionModel(ManagedModel):
-
     def init_model(self):
         self.model = VisionModel(device=device)
+
+    def predict(self, batch):
+        return self.model.batch_prediction(batch)
+
+
+class ManagedVisionModel2(ManagedModel):
+    def init_model(self):
+        self.model = VisionModel2(device=device)
 
     def predict(self, batch):
         return self.model.batch_prediction(batch)
@@ -38,19 +46,30 @@ def setup_module(module):
 
     with open(os.path.join(DIR_PATH, "cat.jpg"), 'rb') as f:
         image_bytes = f.read()
-    with open(os.path.join(DIR_PATH, "dog.jpg"), 'rb') as f:
-        image_bytes2 = f.read()
+
     input_batch = [image_bytes]
     vision_model = VisionModel(device=device)
     single_output = vision_model.batch_prediction(input_batch)
     batch_output = vision_model.batch_prediction(input_batch * BATCH_SIZE)
 
+    with open(os.path.join(DIR_PATH, "dog.jpg"), 'rb') as f:
+        image_bytes2 = f.read()
     input_batch2 = [image_bytes2]
-    single_output2 = vision_model.batch_prediction(input_batch2)
-    batch_output2 = vision_model.batch_prediction(input_batch2 * BATCH_SIZE)
+    vision_model2 = VisionModel2(device=device)
+    single_output2 = vision_model2.batch_prediction(input_batch2)
+    batch_output2 = vision_model2.batch_prediction(input_batch2 * BATCH_SIZE)
 
     managed_model = ManagedVisionModel()
     managed_model.init_model()
+
+
+def test_init_redisworkers():
+    from multiprocessing import freeze_support
+    freeze_support()
+    thread1 = threading.Thread(target=run_redis_workers_forever,args=(ManagedVisionModel, 8, 0.1, 2, (0, 1), "localhost:6379", 'test'), daemon=True)
+    thread2 = threading.Thread(target=run_redis_workers_forever,args=(ManagedVisionModel2, 8, 0.1, 2, (0, 1), "localhost:6379", 'test_1'), daemon=True)
+    thread1.start()
+    thread2.start()
 
 
 def test_threaded_streamer():
