@@ -5,7 +5,8 @@ import threading
 
 from vision_case.model import VisionDensenetModel, VisionResNetModel, DIR_PATH
 
-from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStreamer, RedisWorker, run_redis_workers_forever
+from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStreamer, RedisWorker, \
+    run_redis_workers_forever
 import torch
 
 BATCH_SIZE = 8
@@ -46,7 +47,6 @@ def setup_module(module):
 
     with open(os.path.join(DIR_PATH, "cat.jpg"), 'rb') as f:
         image_bytes = f.read()
-
     input_batch = [image_bytes]
     vision_model = VisionDensenetModel(device=device)
     single_output = vision_model.batch_prediction(input_batch)
@@ -66,8 +66,10 @@ def setup_module(module):
 def test_init_redisworkers():
     from multiprocessing import freeze_support
     freeze_support()
-    thread1 = threading.Thread(target=run_redis_workers_forever,args=(ManagedVisionDensenetModel, 8, 0.1, 2, (0, 1), "localhost:6379", 'channel_for_densenet'), daemon=True)
-    thread2 = threading.Thread(target=run_redis_workers_forever,args=(ManagedVisionResNetModel, 8, 0.1, 2, (0, 1), "localhost:6379", 'channel_for_resnet'), daemon=True)
+    thread1 = threading.Thread(target=run_redis_workers_forever, args=(
+    ManagedVisionDensenetModel, 8, 0.1, 2, (0, 1), "localhost:6379", 'channel_for_densenet'), daemon=True)
+    thread2 = threading.Thread(target=run_redis_workers_forever, args=(
+    ManagedVisionResNetModel, 8, 0.1, 2, (0, 1), "localhost:6379", 'channel_for_resnet'), daemon=True)
     thread1.start()
     thread2.start()
 
@@ -133,10 +135,8 @@ def test_mult_channel_streamer():
     batch_predict = streamer_1.predict(input_batch * BATCH_SIZE)
     assert batch_predict == batch_output
 
-
     single_predict2 = streamer_2.predict(input_batch2)
     assert single_predict2 == single_output2
 
     batch_predict2 = streamer_2.predict(input_batch2 * BATCH_SIZE)
     assert batch_predict2 == batch_output2
-

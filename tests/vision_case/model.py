@@ -8,7 +8,6 @@ from torchvision import models
 from torchvision import transforms
 from PIL import Image
 
-
 DIR_PATH = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -35,6 +34,7 @@ class VisionModel(object):
         _, y_hat = outputs.max(1)
         predicted_ids = y_hat.tolist()
         return [self.imagenet_class_index[str(i)] for i in predicted_ids]
+
 
 class VisionDensenetModel(VisionModel):
     def __init__(self, device="cpu"):
@@ -69,6 +69,7 @@ class VisionResNetModel(VisionModel):
         self.model = models.resnet101(pretrained=True)
         self.model.to(self.device)
         self.model.eval()
+
     @staticmethod
     def transform_image(image_bytes):
         my_transforms = transforms.Compose([transforms.Resize(255),
