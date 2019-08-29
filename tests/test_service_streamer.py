@@ -9,7 +9,7 @@ from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStre
     run_redis_workers_forever
 import torch
 
-BATCH_SIZE = 8
+BATCH_SIZE = 2
 
 if torch.cuda.is_available():
     device = "cuda"
@@ -67,9 +67,9 @@ def test_init_redisworkers():
     from multiprocessing import freeze_support
     freeze_support()
     thread1 = threading.Thread(target=run_redis_workers_forever, args=(
-    ManagedVisionDensenetModel, 8, 0.1, 2, (0, 1), "localhost:6379", 'channel_for_densenet'), daemon=True)
+    ManagedVisionDensenetModel, 16, 0.1, 4, (0, 1, 2, 3), "localhost:6379", 'channel_for_densenet'), daemon=True)
     thread2 = threading.Thread(target=run_redis_workers_forever, args=(
-    ManagedVisionResNetModel, 8, 0.1, 2, (0, 1), "localhost:6379", 'channel_for_resnet'), daemon=True)
+    ManagedVisionResNetModel, 16, 0.1, 4, (0, 1, 2, 3), "localhost:6379", 'channel_for_resnet'), daemon=True)
     thread1.start()
     thread2.start()
 
