@@ -371,9 +371,4 @@ streamer = RedisStreaemr(prefix='test')
 output = streamer.predict(batch)
 ```
 
-## Test
-For testing:
-run ``pytest test_service_streamer.py``
-
-
 

@@ -3,7 +3,7 @@
 import os
 import threading
 
-from vision_case.model import VisionModel, VisionModel2, DIR_PATH
+from vision_case.model import VisionDensenetModel, VisionResNetModel, DIR_PATH
 
 from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStreamer, RedisWorker, run_redis_workers_forever
 import torch
@@ -25,17 +25,17 @@ single_output2 = None
 batch_output2 = None
 
 
-class ManagedVisionModel(ManagedModel):
+class ManagedVisionDensenetModel(ManagedModel):
     def init_model(self):
-        self.model = VisionModel(device=device)
+        self.model = VisionDensenetModel(device=device)
 
     def predict(self, batch):
         return self.model.batch_prediction(batch)
 
 
-class ManagedVisionModel2(ManagedModel):
+class ManagedVisionResNetModel(ManagedModel):
     def init_model(self):
-        self.model = VisionModel2(device=device)
+        self.model = VisionResNetModel(device=device)
 
     def predict(self, batch):
         return self.model.batch_prediction(batch)
@@ -48,26 +48,26 @@ def setup_module(module):
         image_bytes = f.read()
 
     input_batch = [image_bytes]
-    vision_model = VisionModel(device=device)
+    vision_model = VisionDensenetModel(device=device)
     single_output = vision_model.batch_prediction(input_batch)
     batch_output = vision_model.batch_prediction(input_batch * BATCH_SIZE)
 
     with open(os.path.join(DIR_PATH, "dog.jpg"), 'rb') as f:
         image_bytes2 = f.read()
     input_batch2 = [image_bytes2]
-    vision_model2 = VisionModel2(device=device)
+    vision_model2 = VisionResNetModel(device=device)
     single_output2 = vision_model2.batch_prediction(input_batch2)
     batch_output2 = vision_model2.batch_prediction(input_batch2 * BATCH_SIZE)
 
-    managed_model = ManagedVisionModel()
+    managed_model = ManagedVisionDensenetModel()
     managed_model.init_model()
 
 
 def test_init_redisworkers():
     from multiprocessing import freeze_support
     freeze_support()
-    thread1 = threading.Thread(target=run_redis_workers_forever,args=(ManagedVisionModel, 8, 0.1, 2, (0, 1), "localhost:6379", 'test'), daemon=True)
-    thread2 = threading.Thread(target=run_redis_workers_forever,args=(ManagedVisionModel2, 8, 0.1, 2, (0, 1), "localhost:6379", 'test_1'), daemon=True)
+    thread1 = threading.Thread(target=run_redis_workers_forever,args=(ManagedVisionDensenetModel, 8, 0.1, 2, (0, 1), "localhost:6379", 'channel_for_densenet'), daemon=True)
+    thread2 = threading.Thread(target=run_redis_workers_forever,args=(ManagedVisionResNetModel, 8, 0.1, 2, (0, 1), "localhost:6379", 'channel_for_resnet'), daemon=True)
     thread1.start()
     thread2.start()
 
@@ -115,7 +115,7 @@ def test_future_api():
 
 def test_redis_streamer():
     # Spawn releases 4 gpu worker processes
-    streamer = RedisStreamer(prefix='test')
+    streamer = RedisStreamer(prefix='channel_for_densenet')
     single_predict = streamer.predict(input_batch)
     assert single_predict == single_output
 
@@ -124,8 +124,8 @@ def test_redis_streamer():
 
 
 def test_mult_channel_streamer():
-    streamer_1 = RedisStreamer(prefix='test')
-    streamer_2 = RedisStreamer(prefix='test_1')
+    streamer_1 = RedisStreamer(prefix='channel_for_densenet')
+    streamer_2 = RedisStreamer(prefix='channel_for_resnet')
 
     single_predict = streamer_1.predict(input_batch)
     assert single_predict == single_output
