@@ -363,13 +363,21 @@ It can be seen that the performance of ``service_streamer`` is almost linearly r
 example of initialiazing workers:  
     
 ```python
-run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_1')
-run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_2')
+from service_streamer import run_redis_workers_forever
+from bert_model import ManagedBertModel
+
+if __name__ == "__main__":
+    from multiprocessing import freeze_support
+    freeze_support()
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_1')
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_2')
 ```
 
 example of using streamer to have result:  
     
 ```python
+from service_streamer import RedisStreamer
+
 streamer_1 = RedisStreaemr(prefix='channel_1')
 streamer_2 = RedisStreaemr(prefix='channel_1')
 

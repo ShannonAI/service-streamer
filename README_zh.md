@@ -333,15 +333,23 @@ Flask多线程server已经成为性能瓶颈，故采用gevent server，代码�
 **A:** 指定prefix参数，此时会使用redis的不同频道，从而避免冲突
 
 启动worker的方法:  
-    
+      
 ```python
-run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_1')
-run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_2')
+from service_streamer import run_redis_workers_forever
+from bert_model import ManagedBertModel
+
+if __name__ == "__main__":
+    from multiprocessing import freeze_support
+    freeze_support()
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_1')
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_2')
 ```
 
 接下来定义在另一个文件中streamer并得到模型结果:  
     
 ```python
+from service_streamer import RedisStreamer
+
 streamer_1 = RedisStreaemr(prefix='channel_1')
 streamer_2 = RedisStreaemr(prefix='channel_1')
 
