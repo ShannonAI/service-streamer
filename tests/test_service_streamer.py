@@ -8,6 +8,7 @@ from vision_case.model import VisionDensenetModel, VisionResNetModel, DIR_PATH
 from service_streamer import ThreadedStreamer, ManagedModel, Streamer, RedisStreamer, RedisWorker, \
     run_redis_workers_forever
 import torch
+import pytest
 
 BATCH_SIZE = 2
 
@@ -33,7 +34,7 @@ class ManagedVisionResNetModel(ManagedModel):
         return self.model.batch_prediction(batch)
 
 
-class TestClass:
+class TestClass(object):
 
     def setup_class(self):
         with open(os.path.join(DIR_PATH, "cat.jpg"), 'rb') as f:
@@ -53,10 +54,7 @@ class TestClass:
         self.managed_model = ManagedVisionDensenetModel()
         self.managed_model.init_model()
 
-    def test_init_redisworkers(self):
-        from multiprocessing import freeze_support
-        freeze_support()
-
+    def test_init_redis_workers(self):
         thread = threading.Thread(target=run_redis_workers_forever, args=(
             ManagedVisionDensenetModel, 8, 0.1, 2, (0, 1, 2, 3), "localhost:6379", ''), daemon=True)
         thread1 = threading.Thread(target=run_redis_workers_forever, args=(
@@ -76,6 +74,8 @@ class TestClass:
         batch_predict = streamer.predict(self.input_batch * BATCH_SIZE)
         assert batch_predict == self.batch_output
 
+        streamer.destroy_workers()
+
     def test_managed_model(self):
         single_predict = self.managed_model.predict(self.input_batch)
         assert single_predict == self.single_output
@@ -92,6 +92,8 @@ class TestClass:
         batch_predict = streamer.predict(self.input_batch * BATCH_SIZE)
         assert batch_predict == self.batch_output
 
+        streamer.destroy_workers()
+
     def test_future_api(self):
         streamer = ThreadedStreamer(self.vision_model.batch_prediction, batch_size=8)
 
@@ -105,6 +107,8 @@ class TestClass:
             batch_predict.extend(future.result())
         assert batch_predict == self.batch_output
 
+        streamer.destroy_workers()
+
     def test_redis_streamer(self):
         # Spawn releases 4 gpu worker processes
         streamer = RedisStreamer()
@@ -114,7 +118,10 @@ class TestClass:
         batch_predict = streamer.predict(self.input_batch * BATCH_SIZE)
         assert batch_predict == self.batch_output
 
-    def test_mult_channel_streamer(self):
+        with pytest.raises(NotImplementedError):
+            streamer.destroy_workers()
+
+    def test_multi_channel_streamer(self):
         streamer_1 = RedisStreamer(prefix='channel_for_densenet')
         streamer_2 = RedisStreamer(prefix='channel_for_resnet')
 

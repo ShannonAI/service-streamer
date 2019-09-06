@@ -132,6 +132,9 @@ class _BaseStreamer(object):
         ret = self._output(task_id)
         return ret
 
+    def destroy_workers(self):
+        raise NotImplementedError
+
 
 class _BaseStreamWorker(object):
     def __init__(self, predict_function, batch_size, max_latency, *args, **kwargs):
@@ -141,16 +144,20 @@ class _BaseStreamWorker(object):
         self._predict = predict_function
         self._batch_size = batch_size
         self._max_latency = max_latency
+        self._destroy_event = kwargs.get("destroy_event", None)
 
-    def run_forever(self):
+    def run_forever(self, *args, **kwargs):
         self._pid = os.getpid()  # overwrite the pid
         logger.info("[gpu worker %d] %s start working" % (self._pid, self))
 
         while True:
             handled = self._run_once()
+            if self._destroy_event and self._destroy_event.is_set():
+                break
             if not handled:
                 # sleep if no data handled last time
                 time.sleep(TIME_SLEEP)
+        logger.info("[gpu worker %d] %s shutdown" % (self._pid, self))
 
     def model_predict(self, batch_input):
         batch_result = self._predict(batch_input)
@@ -198,7 +205,10 @@ class ThreadedStreamer(_BaseStreamer):
         super().__init__()
         self._input_queue = Queue()
         self._output_queue = Queue()
-        self._worker = ThreadedWorker(predict_function, batch_size, max_latency, self._input_queue, self._output_queue)
+        self._worker_destroy_event=threading.Event()
+        self._worker = ThreadedWorker(predict_function, batch_size, max_latency,
+                                      self._input_queue, self._output_queue,
+                                      destroy_event=self._worker_destroy_event)
         self._worker_thread = threading.Thread(target=self._worker.run_forever, name="thread_worker")
         self._worker_thread.daemon = True
         self._worker_thread.start()
@@ -214,10 +224,17 @@ class ThreadedStreamer(_BaseStreamer):
             message = None
         return message
 
+    def destroy_workers(self):
+        self._worker_destroy_event.set()
+        self._worker_thread.join(timeout=WORKER_TIMEOUT)
+        if self._worker_thread.is_alive():
+            raise TimeoutError("worker_thread destroy timeout")
+        logger.info("workers destroyed")
+
 
 class ThreadedWorker(_BaseStreamWorker):
-    def __init__(self, predict_function, batch_size, max_latency, request_queue, response_queue):
-        super().__init__(predict_function, batch_size, max_latency)
+    def __init__(self, predict_function, batch_size, max_latency, request_queue, response_queue, *args, **kwargs):
+        super().__init__(predict_function, batch_size, max_latency, *args, **kwargs)
         self._request_queue = request_queue
         self._response_queue = response_queue
 
@@ -241,25 +258,29 @@ class Streamer(_BaseStreamer):
         self.cuda_devices = cuda_devices
         self._input_queue = mp.Queue()
         self._output_queue = mp.Queue()
-        self._worker = StreamWorker(predict_function_or_model, batch_size, max_latency, self._input_queue,
-                                    self._output_queue, model_init_args, model_init_kwargs)
+        self._worker = StreamWorker(predict_function_or_model, batch_size, max_latency,
+                                    self._input_queue, self._output_queue,
+                                    model_init_args, model_init_kwargs)
         self._worker_ps = []
         self._worker_ready_events = []
+        self._worker_destroy_events = []
         self._setup_gpu_worker()
         self._delay_setup()
 
     def _setup_gpu_worker(self):
         for i in range(self.worker_num):
-            e = mp.Event()
+            ready_event = mp.Event()
+            destroy_event = mp.Event()
             if self.cuda_devices is not None:
                 gpu_id = self.cuda_devices[i % len(self.cuda_devices)]
-                args = (gpu_id, e,)
+                args = (gpu_id, ready_event, destroy_event)
             else:
-                args = (None, e,)
+                args = (None, ready_event, destroy_event)
             p = mp.Process(target=self._worker.run_forever, args=args, name="stream_worker", daemon=True)
             p.start()
             self._worker_ps.append(p)
-            self._worker_ready_events.append(e)
+            self._worker_ready_events.append(ready_event)
+            self._worker_destroy_events.append(destroy_event)
 
     def _wait_for_worker_ready(self, timeout=WORKER_TIMEOUT):
         # wait for all workers finishing init
@@ -278,17 +299,26 @@ class Streamer(_BaseStreamer):
             message = None
         return message
 
+    def destroy_workers(self):
+        for e in self._worker_destroy_events:
+            e.set()
+        for p in self._worker_ps:
+            p.join(timeout=WORKER_TIMEOUT)
+            if p.is_alive():
+                raise TimeoutError("worker_process destroy timeout")
+        logger.info("workers destroyed")
+
 
 class StreamWorker(_BaseStreamWorker):
     def __init__(self, predict_function_or_model, batch_size, max_latency, request_queue, response_queue,
-                 model_init_args, model_init_kwargs):
-        super().__init__(predict_function_or_model, batch_size, max_latency)
+                 model_init_args, model_init_kwargs, *args, **kwargs):
+        super().__init__(predict_function_or_model, batch_size, max_latency, *args, **kwargs)
         self._request_queue = request_queue
         self._response_queue = response_queue
         self._model_init_args = model_init_args or []
         self._model_init_kwargs = model_init_kwargs or {}
 
-    def run_forever(self, gpu_id=None, ready_event=None):
+    def run_forever(self, gpu_id=None, ready_event=None, destroy_event=None):
         # if it is a managed model, lazy init model after forked & set CUDA_VISIBLE_DEVICES
         if isinstance(self._predict, type) and issubclass(self._predict, ManagedModel):
             model_class = self._predict
@@ -299,6 +329,8 @@ class StreamWorker(_BaseStreamWorker):
             self._predict = self._model.predict
             if ready_event:
                 ready_event.set()  # tell father process that init is finished
+        if destroy_event:
+            self._destroy_event = destroy_event
         super().run_forever()
 
     def _recv_request(self, timeout=TIMEOUT):
@@ -337,9 +369,10 @@ class RedisStreamer(_BaseStreamer):
 
 class RedisWorker(_BaseStreamWorker):
     def __init__(self, model_class, batch_size, max_latency=0.1,
-                 redis_broker="localhost:6379", prefix='', model_init_args=None, model_init_kwargs=None):
+                 redis_broker="localhost:6379", prefix='',
+                 model_init_args=None, model_init_kwargs=None, *args, **kwargs):
         # assert issubclass(model_class, ManagedModel)
-        super().__init__(model_class, batch_size, max_latency)
+        super().__init__(model_class, batch_size, max_latency, *args, **kwargs)
         
         self.prefix = prefix
         self._model_init_args = model_init_args or []

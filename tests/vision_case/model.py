@@ -38,7 +38,7 @@ class VisionModel(object):
 
 class VisionDensenetModel(VisionModel):
     def __init__(self, device="cpu"):
-        super().__init__()
+        super().__init__(device=device)
         self.model = models.densenet121(pretrained=True)
         self.model.to(self.device)
         self.model.eval()
@@ -46,7 +46,7 @@ class VisionDensenetModel(VisionModel):
 
 class VisionResNetModel(VisionModel):
     def __init__(self, device="cpu"):
-        super().__init__()
+        super().__init__(device=device)
         self.model = models.resnet101(pretrained=True)
         self.model.to(self.device)
         self.model.eval()

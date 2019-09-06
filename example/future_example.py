@@ -10,7 +10,7 @@ from example.bert_model import TextInfillingModel, ManagedBertModel
 def main():
     batch_size = 64
     model = TextInfillingModel()
-    # streamer = ThreadedStreamer(model.predict, batch_size=max_batch, max_latency=0.1)
+    # streamer = ThreadedStreamer(model.predict, batch_size=batch_size, max_latency=0.1)
     streamer = Streamer(ManagedBertModel, batch_size=batch_size, max_latency=0.1, worker_num=4, cuda_devices=(0, 1, 2, 3))
     streamer._wait_for_worker_ready()
     # streamer = RedisStreamer()
@@ -41,6 +41,9 @@ def main():
         output = future.result(timeout=20)
     t_end = time.time()
     print('[streamed]sentences per second', total_steps / (t_end - t_start))
+
+    streamer.destroy_workers()
+    time.sleep(10)
 
 
 if __name__ == '__main__':
