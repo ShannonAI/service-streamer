@@ -317,7 +317,6 @@ class StreamWorker(_BaseStreamWorker):
         self._response_queue = response_queue
         self._model_init_args = model_init_args or []
         self._model_init_kwargs = model_init_kwargs or {}
-        self._destroy_event = None
 
     def run_forever(self, gpu_id=None, ready_event=None, destroy_event=None):
         # if it is a managed model, lazy init model after forked & set CUDA_VISIBLE_DEVICES
@@ -330,8 +329,8 @@ class StreamWorker(_BaseStreamWorker):
             self._predict = self._model.predict
             if ready_event:
                 ready_event.set()  # tell father process that init is finished
-            if destroy_event:
-                self._destroy_event = destroy_event
+        if destroy_event:
+            self._destroy_event = destroy_event
         super().run_forever()
 
     def _recv_request(self, timeout=TIMEOUT):
