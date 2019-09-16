@@ -254,7 +254,7 @@ class ThreadedWorker(_BaseStreamWorker):
 
 class Streamer(_BaseStreamer):
     def __init__(self, predict_function_or_model, batch_size, max_latency=0.1, worker_num=1,
-                 cuda_devices=None, model_init_args=None, model_init_kwargs=None):
+                 cuda_devices=None, model_init_args=None, model_init_kwargs=None, wait_for_worker_ready=False):
         super().__init__()
         self.worker_num = worker_num
         self.cuda_devices = cuda_devices
@@ -267,6 +267,8 @@ class Streamer(_BaseStreamer):
         self._worker_ready_events = []
         self._worker_destroy_events = []
         self._setup_gpu_worker()
+        if wait_for_worker_ready:
+            self._wait_for_worker_ready()
         self._delay_setup()
 
     def _setup_gpu_worker(self):
