@@ -295,9 +295,9 @@ Test examples and scripts can be found in [example](./example).
 python example/flask_example.py
 
 # benchmark naive api without service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/naive
+./wrk -t 4 -c 128 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/naive
 # benchmark stream api with service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+./wrk -t 4 -c 128 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/stream
 ```
 
 | |Naive|ThreaedStreamer|Streamer|RedisStreamer
@@ -313,7 +313,7 @@ We adopt gevent server because multi-threaded Flask server has become a performa
 
 
 ```bash
-./wrk -t 8 -c 512 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+./wrk -t 8 -c 512 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/stream
 ```
 
 | gpu_worker_num | Naive | ThreadedStreamer |Streamer|RedisStreamer
