@@ -130,7 +130,7 @@ class _BaseStreamer(object):
     def predict(self, batch):
         task_id = self._input(batch)
         ret = self._output(task_id)
-        assert len(batch) == len(ret), F"input batch size {len(batch)} and output batch size {len(ret)} must be equal."
+        assert len(batch) == len(ret), "input batch size {} and output batch size {} must be equal.".format(len(batch), len(ret))
         return ret
 
     def destroy_workers(self):
@@ -162,8 +162,7 @@ class _BaseStreamWorker(object):
 
     def model_predict(self, batch_input):
         batch_result = self._predict(batch_input)
-        assert len(batch_input) == len(batch_result), F"input batch size {len(batch_input)} and " \
-            F"output batch size {len(batch_result)} must be equal."
+        assert len(batch_input) == len(batch_result), "input batch size {} and output batch size {} must be equal.".format(len(batch_input), len(batch_result))
         return batch_result
 
     def _run_once(self):
