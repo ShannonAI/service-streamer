@@ -273,9 +273,9 @@ for future in xs:
 python example/flask_example.py
 
 # benchmark naive api without service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/naive
+./wrk -t 4 -c 128 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/naive
 # benchmark stream api with service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+./wrk -t 4 -c 128 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/stream
 ```
 
 | |Naive|ThreaedStreamer|Streamer|RedisStreamer
@@ -289,7 +289,7 @@ python example/flask_example.py
 Flask多线程server已经成为性能瓶颈，故采用gevent server，代码参考[flask_multigpu_example.py](example/flask_multigpu_example.py)
 
 ```bash
-./wrk -t 8 -c 512 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+./wrk -t 8 -c 512 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/stream
 ```
 
 | gpu_worker_num | Naive | ThreadedStreamer |Streamer|RedisStreamer
