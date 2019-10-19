@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(name='service_streamer',
-      version="0.0.2",
+      version="0.1.2",
       description='Boosting your web service of deep learning applications',
       long_description=long_description,
       long_description_content_type="text/markdown",

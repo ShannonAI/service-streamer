@@ -1,27 +1,36 @@
 <h1 align="center">Service Streamer</h1>
 
-<p align="center">Boosting your Web Services of Deep Learning Applications. <a href="./README_zh.md">中文README</a></p>
-
-
 <p align="center">
-  <a href="#What is Service Streamer ?">What is Service Streamer ?</a> •
-  <a href="#Highlights">Highlights</a> •
-  <a href="#Installation">Installation</a> •
-  <a href="#Develop BERT Service in 5 Mintues">Develop BERT Service in 5 Mintues</a> •
-  <a href="#API">API</a> •
-  <a href="#Benchmark">Benchmark</a> •
-  
+Boosting your Web Services of Deep Learning Applications. 
+<a href="./README_zh.md">中文README</a>
 </p>
 
+<p align="center">
+</p>
 
-<h6 align="center">Made by ShannonAI • :globe_with_meridians: <a href="http://www.shannonai.com/">http://www.shannonai.com/</a></h6>
+<p align="center">
+  <a href="#what-is-service-streamer-">What is Service Streamer ?</a> •
+  <a href="#highlights">Highlights</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#develop-bert-service-in-5-minutes">Develop BERT Service in 5 Minutes</a> •
+  <a href="#api">API</a> •
+  <a href="#benchmark">Benchmark</a> •
+  <a href="#faq">FAQ</a> •
+</p>
+
+<h6 align="center">
+    <a href="https://travis-ci.org/ShannonAI/service-streamer">
+        <img src="https://travis-ci.org/ShannonAI/service-streamer.svg?branch=master" alt="Build status">
+    </a>
+ • Made by ShannonAI • :globe_with_meridians: <a href="http://www.shannonai.com/">http://www.shannonai.com/</a>
+</h6>
 
 
 <h2 align="center">What is Service Streamer ?</h2>
 
-A mini-batch collects individual data samples and is usually adopted in deep learning models during training and inference. Models can utilize the parallel computation characteristic of GPUs and speed up computing. Requests from users are usually discrete when machine learning models are deployed online. There is an issue that computing processors are idle when using conventional synchronous blocking message communication mechanism. The wait time will be longer when there are requests from enormous users in a short time. 
+A mini-batch collects data samples and is usually used in deep learning models. In this way, models can utilize the parallel computing capability of GPUs. However, requests from users for web services are usually discrete. If using conventional loop server or threaded server, GPUs will be idle dealing with one request at a time. And the latency time will be linearly increasing when there are concurrent user requests. 
 
-ServiceStreamer is a middleware for web service of machine learning applications. Queue requests from users are scheduled into mini-batches. ServiceStreamer can enhance the overall performance of the system by improving the ratio of GPU utilization. 
+ServiceStreamer is a middleware for web service of machine learning applications. Queue requests from users are sampled into mini-batches. ServiceStreamer can significantly enhance the overall performance of the system by improving GPU utilization. 
 
 <h2 align="center">Highlights</h2>
 
@@ -38,13 +47,13 @@ Install ServiceStream by using `pip`，requires **Python >= 3.5** :
 pip install service_streamer 
 ```
 
-<h2 align="center">Develop BERT Service in 5 Mintues</h2>
+<h2 align="center">Develop BERT Service in 5 Minutes</h2>
 
 We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. The service processes 1400 sentences per second.  
 
 ``Text Infilling`` is a task in natural language processing: given a sentence with several words randomly removed, the model predicts those words removed through the given context. 
 
-``BERT`` has attracted a lot of attention in these two years and it achieves new State-Of-The-Art results across many nlp tasks. BERT utilizes "Masked Language Model (MLM)" as one of the pre-training objectives. MLM models randomly mask some of the tokens from the input, and the objective is to predict the original vocabulary id of the masked word based on its context. MLM has similarities with text infilling. It is natural to introduce BERT to text infilling task. 
+``BERT`` has attracted a lot of attention in these two years and it achieves State-Of-The-Art results across many nlp tasks. BERT utilizes "Masked Language Model (MLM)" as one of the pre-training objectives. MLM models randomly mask some of the tokens from the input, and the objective is to predict the original vocabulary id of the masked word based on its context. MLM has similarities with text infilling. It is natural to introduce BERT to text infilling task. 
 
 
 1. First, we define a model for text filling task [bert_model.py](./example/bert_model.py). The `predict` function accepts a batch of sentences and returns predicted position results of the `[MASK]` token. 
@@ -54,9 +63,9 @@ We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. Th
         ...
 
 
-    batch = ["twinkle twinkle [MASK] star",
-             "Happy birthday to [MASK]",
-             'the answer to life, the [MASK], and everything']
+    batch = ["twinkle twinkle [MASK] star.",
+             "Happy birthday to [MASK].",
+             'the answer to life, the [MASK], and everything.']
     model = TextInfillingModel()
     outputs = model.predict(batch)
     print(outputs)
@@ -85,7 +94,7 @@ We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. Th
     Please run [flask_example.py](./example/flask_example.py), then you will get a vanilla Web server. 
 
     ```bash
-    curl -X POST http://localhost:5005/naive -d 's=Happy birthday to [MASK]' 
+    curl -X POST http://localhost:5005/naive -d 's=Happy birthday to [MASK].' 
     ["you"]
     ```
 
@@ -120,9 +129,7 @@ We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. Th
 
 
     ```python
-    import multiprocessing; multiprocessing.set_start_method("spawn", force=True)
     from service_streamer import ManagedModel, Streamer
-    multiprocessing.set_start_method("spawn", force=True)
 
     class ManagedBertModel(ManagedModel):
 
@@ -169,10 +176,9 @@ Start web server on multi-threading (or coordination). Your server can usually a
 
 #### Distributed GPU worker
 
-The performance of web server (QPS) in actual projects is much higher than that of GPU model, so we support one web server with multiple GPU worker processes.
+The performance of web server (QPS) in practice is much higher than that of GPU model. We also support one web server with multiple GPU worker processes.
 
 ```python
-import multiprocessing; multiprocessing.set_start_method("spawn", force=True)
 from service_streamer import Streamer
 
 # Spawn releases 4 gpu worker processes
@@ -206,7 +212,6 @@ The above method is simple to define, but the main process initialization model 
 Therefore, we have provided the ```ManagedModel``` class to facilitate model lazy initialization and migration while supporting multiple GPUs.
 
 ```python
-import multiprocessing; multiprocessing.set_start_method("spawn", force=True)
 from service_streamer import ManagedModel
 
 class ManagedBertModel(ManagedModel):
@@ -225,7 +230,7 @@ outputs = streamer.predict(batch)
 
 #### Distributed Web Server
 
-Some cpu-intensive calculations, such as image and text preprocessing, need to be done first in web server. The preprocessed data is then forward into GPU worker for predictions after preprocessing. CPU resources often become performance bottlenecks in practice. Therefore, we also provide the mode of multi-web servers matching (single or multiple) gpu worker.
+Some cpu-intensive calculations, such as image and text preprocessing, need to be done first in web server. The preprocessed data is then forward into GPU worker for predictions. CPU resources often become performance bottlenecks in practice. Therefore, we also provide the mode of multi-web servers matching (single or multiple) gpu workers.
 
 
 Use ```RedisStream``` to specify a unique Redis address for all web servers and gpu workers. 
@@ -235,7 +240,6 @@ Use ```RedisStream``` to specify a unique Redis address for all web servers and 
 # default parameters can be omitted and localhost:6379 is used.
 streamer = RedisStreamer(redis_broker="172.22.22.22:6379")
 ```
-
 
 We make use of ``gunicorn`` or ``uwsgi`` to implement reverse proxy and load balancing.
 
@@ -250,7 +254,7 @@ Each request will be load balanced to each web server for cpu preprocessing, and
 ### Future API
 
 You might be familiar with `future` if you have used any concurrent library. 
-You can directly use the Future API when you want to use ``service_streamer`` for queueing requests or distributed GPU computing and your usage scenario is not web service. 
+You can use the Future API directly if you want to use ``service_streamer`` for queueing requests or distributed GPU computing and using scenario is not web service. 
 
 
 ```python
@@ -291,9 +295,9 @@ Test examples and scripts can be found in [example](./example).
 python example/flask_example.py
 
 # benchmark naive api without service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/naive
+./wrk -t 4 -c 128 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/naive
 # benchmark stream api with service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+./wrk -t 4 -c 128 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/stream
 ```
 
 | |Naive|ThreaedStreamer|Streamer|RedisStreamer
@@ -309,7 +313,7 @@ We adopt gevent server because multi-threaded Flask server has become a performa
 
 
 ```bash
-./wrk -t 8 -c 512 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+./wrk -t 8 -c 512 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/stream
 ```
 
 | gpu_worker_num | Naive | ThreadedStreamer |Streamer|RedisStreamer
@@ -319,16 +323,15 @@ We adopt gevent server because multi-threaded Flask server has become a performa
 |4|N/A|N/A|494.20|1034.57|
 
 
-* ``Threaded Streamer`` Due to the limitation of Python GIL, multi-worker is meaningless. We conduct comparison studies between single GPU worker. 
+* ``Threaded Streamer`` Due to the limitation of Python GIL, multi-worker is meaningless. We conduct comparison studies using single GPU worker. 
 
 * ``Streamer`` Performance improvement is not linear when it is greater than 2 gpu worker.
-The utilization rate of CPU reaches 100 and the bottleneck is CPU at this time. And the performance issue of flask is the obstacle.  
-
+The utilization rate of CPU reaches 100. The bottleneck is CPU at this time and the performance issue of flask is the obstacle.  
 
 
 ### Utilize Future API to start multiple GPU processes
 
-We adopt [Future API](#future-api) to conduct multi-GPU benchmeark test locally in order to reduce the influence of performance bottleneck of web server. Please refer to code example in [future_example.py](example/future_example.py)
+We adopt [Future API](#future-api) to conduct multi-GPU benchmeark test locally in order to reduce the performance influence of web server. Please refer to code example in [future_example.py](example/future_example.py)
 
 
 | gpu_worker_num | Batched | ThreadedStreamer |Streamer|RedisStreamer
@@ -337,4 +340,50 @@ We adopt [Future API](#future-api) to conduct multi-GPU benchmeark test locally 
 |2|N/A|N/A|742.16|714.781|
 |4|N/A|N/A|1400.12|1356.47|
 
-It can be seen that the performance of ``service_streamer`` is almost linearly related to the number of gpu workers. And the efficiency of inter-process communication is slightly higher than that of redis communication.
+It can be seen that the performance of ``service_streamer`` is almost linearly related to the number of gpu workers. Communications of inter-process in ``service_streamer`` is more efficient than redis. 
+
+<h2 align="center">FAQ</h2>
+
+**Q:** using a model trained from [allennlp](https://github.com/allenai/allennlp),set ``worker_num=4`` of [Streamer](./service_streamer/service_streamer.py) during inference, what's the reason that 16-core cpu is full and speed is slower than [Streamer](./service_streamer/service_streamer.py) with ``worker_num=1``?
+
+**A:** for multi-process inference, if the model process data using numpy with multi-thread, it may cause cpu overheads, resulting in a multi-core computing speed that slower than a single core. This kind of problem may occur when using third-party libraries such as alennlp, spacy, etc. It could be solved by setting ``numpy threads``environment variables.
+   ```python
+   import os
+   os.environ["MKL_NUM_THREADS"] = "1"  # export MKL_NUM_THREADS=1 
+   os.environ["NUMEXPR_NUM_THREADS"] = "1"  # export NUMEXPR_NUM_THREADS=1 
+   os.environ["OMP_NUM_THREADS"] = "1"  # export OMP_NUM_THREADS=1
+   import numpy
+   ```
+   make sure putting environment variables before ``import numpy``.
+
+**Q:** When using RedisStreamer, if there are only one redis broker and more than one model, the input batches may have different structure. How to deal with such situation?  
+
+**A:** Specify the prefix when initializing worker and streamer, each streamer will use a unique channel.  
+
+example of initialiazing workers:  
+    
+```python
+from service_streamer import run_redis_workers_forever
+from bert_model import ManagedBertModel
+
+if __name__ == "__main__":
+    from multiprocessing import freeze_support
+    freeze_support()
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_1')
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_2')
+```
+
+example of using streamer to have result:  
+    
+```python
+from service_streamer import RedisStreamer
+
+streamer_1 = RedisStreaemr(prefix='channel_1')
+streamer_2 = RedisStreaemr(prefix='channel_2')
+
+# predict
+output_1 = streamer_1.predict(batch)
+output_2 = streamer_2.predict(batch)
+```
+
+

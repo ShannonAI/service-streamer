@@ -1,16 +1,26 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/13
-from typing import List
-from redis import Redis
-from queue import Queue, Empty
+import logging
+import multiprocessing
 import os
-import uuid
-import json
-import time
 import threading
-import multiprocessing as mp
+import time
+import uuid
 import weakref
+import pickle
+from queue import Queue, Empty
+from typing import List
+
+from redis import Redis
+
 from .managed_model import ManagedModel
+
+TIMEOUT = 1
+TIME_SLEEP = 0.001
+WORKER_TIMEOUT = 20
+logger = logging.getLogger(__name__)
+logger.setLevel("INFO")
+mp = multiprocessing.get_context("spawn")
 
 
 class Future(object):
@@ -36,7 +46,7 @@ class Future(object):
             del future_cache[self._id]
 
         # [(request_id, output), ...] sorted by request_id
-        self._outputs.sort(key=lambda i:i[0])
+        self._outputs.sort(key=lambda i: i[0])
         # restore batch result from outputs
         batch_result = [i[1] for i in self._outputs]
 
@@ -50,7 +60,6 @@ class Future(object):
         self._outputs.append((it_id, it_output))
         if len(self._outputs) >= self._size:
             self._finish_event.set()
-            # print("%d task_id:%d size:%d finished" % (os.getpid(), self._id, self._size))
 
 
 class _FutureCache(dict):
@@ -74,7 +83,7 @@ class _BaseStreamer(object):
     def _send_request(self, task_id, request_id, model_input):
         raise NotImplementedError
 
-    def _recv_response(self, timeout=1):
+    def _recv_response(self, timeout=TIMEOUT):
         raise NotImplementedError
 
     def _input(self, batch: List) -> int:
@@ -91,27 +100,26 @@ class _BaseStreamer(object):
         self._future_cache[task_id] = future
 
         for model_input in batch:
-            # print(f"sending_request: PID:{os.getpid()}  task_id:{task_id}  request_id: {request_id}")
             self._send_request(task_id, request_id, model_input)
             request_id += 1
 
         return task_id
 
     def _loop_collect_result(self):
-        print(self, "start _loop_collect_result")
+        logger.info("start _loop_collect_result")
         while True:
-            message = self._recv_response(timeout=1)
+            message = self._recv_response(timeout=TIMEOUT)
             if message:
                 (task_id, request_id, item) = message
                 future = self._future_cache[task_id]
                 future._append_result(request_id, item)
             else:
                 # todo
-                time.sleep(0.001)
+                time.sleep(TIME_SLEEP)
 
     def _output(self, task_id: int) -> List:
         future = self._future_cache[task_id]
-        batch_result = future.result(20)  # 20s timeout for any requests
+        batch_result = future.result(WORKER_TIMEOUT)
         return batch_result
 
     def submit(self, batch):
@@ -122,7 +130,11 @@ class _BaseStreamer(object):
     def predict(self, batch):
         task_id = self._input(batch)
         ret = self._output(task_id)
+        assert len(batch) == len(ret), "input batch size {} and output batch size {} must be equal.".format(len(batch), len(ret))
         return ret
+
+    def destroy_workers(self):
+        raise NotImplementedError
 
 
 class _BaseStreamWorker(object):
@@ -133,20 +145,24 @@ class _BaseStreamWorker(object):
         self._predict = predict_function
         self._batch_size = batch_size
         self._max_latency = max_latency
+        self._destroy_event = kwargs.get("destroy_event", None)
 
-    def run_forever(self):
+    def run_forever(self, *args, **kwargs):
         self._pid = os.getpid()  # overwrite the pid
-        print("[gpu worker %d] %s start working" % (self._pid, self))
+        logger.info("[gpu worker %d] %s start working" % (self._pid, self))
 
         while True:
             handled = self._run_once()
+            if self._destroy_event and self._destroy_event.is_set():
+                break
             if not handled:
                 # sleep if no data handled last time
-                time.sleep(0.001)
+                time.sleep(TIME_SLEEP)
+        logger.info("[gpu worker %d] %s shutdown" % (self._pid, self))
 
     def model_predict(self, batch_input):
-        # fairseq (gpu)
-        batch_result : List[str] = self._predict(batch_input)
+        batch_result = self._predict(batch_input)
+        assert len(batch_input) == len(batch_result), "input batch size {} and output batch size {} must be equal.".format(len(batch_input), len(batch_result))
         return batch_result
 
     def _run_once(self):
@@ -175,10 +191,11 @@ class _BaseStreamWorker(object):
             self._send_response(client_id, task_id, request_id, model_outputs[i])
 
         batch_size = len(batch)
-        print("[gpu worker %d] run_once batch_size: %d start_at: %s spend: %s" % (self._pid, batch_size, start_time, time.time() - start_time))
+        logger.info("[gpu worker %d] run_once batch_size: %d start_at: %s spend: %s" % (
+            self._pid, batch_size, start_time, time.time() - start_time))
         return batch_size
 
-    def _recv_request(self, timeout=1):
+    def _recv_request(self, timeout=TIMEOUT):
         raise NotImplementedError
 
     def _send_response(self, client_id, task_id, request_id, model_input):
@@ -190,7 +207,10 @@ class ThreadedStreamer(_BaseStreamer):
         super().__init__()
         self._input_queue = Queue()
         self._output_queue = Queue()
-        self._worker = ThreadedWorker(predict_function, batch_size, max_latency, self._input_queue, self._output_queue)
+        self._worker_destroy_event=threading.Event()
+        self._worker = ThreadedWorker(predict_function, batch_size, max_latency,
+                                      self._input_queue, self._output_queue,
+                                      destroy_event=self._worker_destroy_event)
         self._worker_thread = threading.Thread(target=self._worker.run_forever, name="thread_worker")
         self._worker_thread.daemon = True
         self._worker_thread.start()
@@ -199,21 +219,28 @@ class ThreadedStreamer(_BaseStreamer):
     def _send_request(self, task_id, request_id, model_input):
         self._input_queue.put((0, task_id, request_id, model_input))
 
-    def _recv_response(self, timeout=1):
+    def _recv_response(self, timeout=TIMEOUT):
         try:
-            message = self._output_queue.get(timeout=1)
+            message = self._output_queue.get(timeout=timeout)
         except Empty:
             message = None
         return message
 
+    def destroy_workers(self):
+        self._worker_destroy_event.set()
+        self._worker_thread.join(timeout=WORKER_TIMEOUT)
+        if self._worker_thread.is_alive():
+            raise TimeoutError("worker_thread destroy timeout")
+        logger.info("workers destroyed")
+
 
 class ThreadedWorker(_BaseStreamWorker):
-    def __init__(self, predict_function, batch_size, max_latency, request_queue, response_queue):
-        super().__init__(predict_function, batch_size, max_latency)
+    def __init__(self, predict_function, batch_size, max_latency, request_queue, response_queue, *args, **kwargs):
+        super().__init__(predict_function, batch_size, max_latency, *args, **kwargs)
         self._request_queue = request_queue
         self._response_queue = response_queue
 
-    def _recv_request(self, timeout=1):
+    def _recv_request(self, timeout=TIMEOUT):
         try:
             item = self._request_queue.get(timeout=timeout)
         except Empty:
@@ -226,69 +253,91 @@ class ThreadedWorker(_BaseStreamWorker):
 
 
 class Streamer(_BaseStreamer):
-    def __init__(self, predict_function_or_model, batch_size, max_latency=0.1, worker_num=1, cuda_devices=None):
+    def __init__(self, predict_function_or_model, batch_size, max_latency=0.1, worker_num=1,
+                 cuda_devices=None, model_init_args=None, model_init_kwargs=None, wait_for_worker_ready=False):
         super().__init__()
         self.worker_num = worker_num
         self.cuda_devices = cuda_devices
         self._input_queue = mp.Queue()
         self._output_queue = mp.Queue()
-        self._worker = StreamWorker(predict_function_or_model, batch_size, max_latency, self._input_queue, self._output_queue)
+        self._worker = StreamWorker(predict_function_or_model, batch_size, max_latency,
+                                    self._input_queue, self._output_queue,
+                                    model_init_args, model_init_kwargs)
         self._worker_ps = []
         self._worker_ready_events = []
+        self._worker_destroy_events = []
         self._setup_gpu_worker()
+        if wait_for_worker_ready:
+            self._wait_for_worker_ready()
         self._delay_setup()
 
     def _setup_gpu_worker(self):
         for i in range(self.worker_num):
-            e = mp.Event()
+            ready_event = mp.Event()
+            destroy_event = mp.Event()
             if self.cuda_devices is not None:
                 gpu_id = self.cuda_devices[i % len(self.cuda_devices)]
-                args = (gpu_id, e,)
+                args = (gpu_id, ready_event, destroy_event)
             else:
-                args = (None, e,)
+                args = (None, ready_event, destroy_event)
             p = mp.Process(target=self._worker.run_forever, args=args, name="stream_worker", daemon=True)
             p.start()
             self._worker_ps.append(p)
-            self._worker_ready_events.append(e)
+            self._worker_ready_events.append(ready_event)
+            self._worker_destroy_events.append(destroy_event)
 
-    def _wait_for_worker_ready(self, timeout=20):
+    def _wait_for_worker_ready(self, timeout=WORKER_TIMEOUT):
         # wait for all workers finishing init
         for (i, e) in enumerate(self._worker_ready_events):
             # todo: select all events with timeout
             is_ready = e.wait(timeout)
-            print("gpu worker:%d ready state: %s" % (i, is_ready))
+            logger.info("gpu worker:%d ready state: %s" % (i, is_ready))
 
     def _send_request(self, task_id, request_id, model_input):
         self._input_queue.put((0, task_id, request_id, model_input))
 
-    def _recv_response(self, timeout=1):
+    def _recv_response(self, timeout=TIMEOUT):
         try:
-            message = self._output_queue.get(timeout=1)
+            message = self._output_queue.get(timeout=timeout)
         except Empty:
             message = None
         return message
 
+    def destroy_workers(self):
+        for e in self._worker_destroy_events:
+            e.set()
+        for p in self._worker_ps:
+            p.join(timeout=WORKER_TIMEOUT)
+            if p.is_alive():
+                raise TimeoutError("worker_process destroy timeout")
+        logger.info("workers destroyed")
+
 
 class StreamWorker(_BaseStreamWorker):
-    def __init__(self, predict_function_or_model, batch_size, max_latency, request_queue, response_queue):
-        super().__init__(predict_function_or_model, batch_size, max_latency)
+    def __init__(self, predict_function_or_model, batch_size, max_latency, request_queue, response_queue,
+                 model_init_args, model_init_kwargs, *args, **kwargs):
+        super().__init__(predict_function_or_model, batch_size, max_latency, *args, **kwargs)
         self._request_queue = request_queue
         self._response_queue = response_queue
+        self._model_init_args = model_init_args or []
+        self._model_init_kwargs = model_init_kwargs or {}
 
-    def run_forever(self, gpu_id=None, ready_event=None):
+    def run_forever(self, gpu_id=None, ready_event=None, destroy_event=None):
         # if it is a managed model, lazy init model after forked & set CUDA_VISIBLE_DEVICES
         if isinstance(self._predict, type) and issubclass(self._predict, ManagedModel):
             model_class = self._predict
-            print("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
+            logger.info("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
             self._model = model_class(gpu_id)
-            self._model.init_model()
-            print("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
+            self._model.init_model(*self._model_init_args, **self._model_init_kwargs)
+            logger.info("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
             self._predict = self._model.predict
             if ready_event:
                 ready_event.set()  # tell father process that init is finished
+        if destroy_event:
+            self._destroy_event = destroy_event
         super().run_forever()
 
-    def _recv_request(self, timeout=1):
+    def _recv_request(self, timeout=TIMEOUT):
         try:
             item = self._request_queue.get(timeout=timeout)
         except Empty:
@@ -307,26 +356,33 @@ class RedisStreamer(_BaseStreamer):
     3. backend loop collecting results
     3. output batch result for a task when every single item is returned
     """
-    def __init__(self, redis_broker="localhost:6379"):
+
+    def __init__(self, redis_broker="localhost:6379", prefix=''):
         super().__init__()
+        self.prefix = prefix
         self._redis_broker = redis_broker
-        self._redis = _RedisClient(self._client_id, self._redis_broker)
+        self._redis = _RedisClient(self._client_id, self._redis_broker, self.prefix)
         self._delay_setup()
 
     def _send_request(self, task_id, request_id, model_input):
         self._redis.send_request(task_id, request_id, model_input)
 
-    def _recv_response(self, timeout=1):
+    def _recv_response(self, timeout=TIMEOUT):
         return self._redis.recv_response(timeout)
 
 
 class RedisWorker(_BaseStreamWorker):
-    def __init__(self, model_class, batch_size, max_latency=0.1, redis_broker="localhost:6379"):
-        assert issubclass(model_class, ManagedModel)
-        super().__init__(model_class, batch_size, max_latency)
-
+    def __init__(self, model_class, batch_size, max_latency=0.1,
+                 redis_broker="localhost:6379", prefix='',
+                 model_init_args=None, model_init_kwargs=None, *args, **kwargs):
+        # assert issubclass(model_class, ManagedModel)
+        super().__init__(model_class, batch_size, max_latency, *args, **kwargs)
+        
+        self.prefix = prefix
+        self._model_init_args = model_init_args or []
+        self._model_init_kwargs = model_init_kwargs or {}
         self._redis_broker = redis_broker
-        self._redis = _RedisServer(0, self._redis_broker)
+        self._redis = _RedisServer(0, self._redis_broker, self.prefix)
         self._requests_queue = Queue()
 
         self.back_thread = threading.Thread(target=self._loop_recv_request, name="thread_recv_request")
@@ -334,26 +390,26 @@ class RedisWorker(_BaseStreamWorker):
         self.back_thread.start()
 
     def run_forever(self, gpu_id=None):
-        print("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
+        logger.info("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
         model_class = self._predict
         self._model = model_class(gpu_id)
-        self._model.init_model()
+        self._model.init_model(*self._model_init_args, **self._model_init_kwargs)
         self._predict = self._model.predict
 
         super().run_forever()
 
     def _loop_recv_request(self):
-        print("[gpu worker %d] start loop_recv_request" % (os.getpid()))
+        logger.info("[gpu worker %d] start loop_recv_request" % (os.getpid()))
         while True:
-            message = self._redis.recv_request(1)
+            message = self._redis.recv_request(timeout=TIMEOUT)
             if message:
-                (client_id, task_id, request_id, request_item) = json.loads(message)
+                (client_id, task_id, request_id, request_item) = pickle.loads(message)
                 self._requests_queue.put((client_id, task_id, request_id, request_item))
             else:
                 # sleep if recv timeout
-                time.sleep(0.001)
+                time.sleep(TIME_SLEEP)
 
-    def _recv_request(self, timeout=1):
+    def _recv_request(self, timeout=TIMEOUT):
         try:
             item = self._requests_queue.get(timeout=timeout)
         except Empty:
@@ -365,20 +421,21 @@ class RedisWorker(_BaseStreamWorker):
         self._redis.send_response(client_id, task_id, request_id, model_output)
 
 
-def _setup_redis_worker_and_runforever(model_class, batch_size, max_latency, gpu_id, redis_broker):
-    redis_worker = RedisWorker(model_class, batch_size, max_latency, redis_broker=redis_broker)
+def _setup_redis_worker_and_runforever(model_class, batch_size, max_latency, gpu_id, redis_broker, prefix=''):
+    redis_worker = RedisWorker(model_class, batch_size, max_latency, redis_broker=redis_broker, prefix=prefix)
     redis_worker.run_forever(gpu_id)
 
 
 def run_redis_workers_forever(model_class, batch_size, max_latency=0.1,
-                              worker_num=1, cuda_devices=None, redis_broker="localhost:6379"):
+                              worker_num=1, cuda_devices=None, redis_broker="localhost:6379",
+                              prefix='', model_init_args=None, model_init_kwargs=None):
     procs = []
     for i in range(worker_num):
         if cuda_devices is not None:
             gpu_id = cuda_devices[i % len(cuda_devices)]
         else:
             gpu_id = None
-        args = [model_class, batch_size, max_latency, gpu_id, redis_broker]
+        args = [model_class, batch_size, max_latency, gpu_id, redis_broker, prefix]
         p = mp.Process(target=_setup_redis_worker_and_runforever, args=args, name="stream_worker", daemon=True)
         p.start()
         procs.append(p)
@@ -388,12 +445,12 @@ def run_redis_workers_forever(model_class, batch_size, max_latency=0.1,
 
 
 class _RedisAgent(object):
-    def __init__(self, redis_id, redis_broker='localhost:6379'):
+    def __init__(self, redis_id, redis_broker='localhost:6379', prefix=''):
         self._redis_id = redis_id
         self._redis_host = redis_broker.split(":")[0]
         self._redis_port = int(redis_broker.split(":")[1])
-        self._redis_request_queue_name = "request_queue"
-        self._redis_response_pb_prefix = "response_pb_"
+        self._redis_request_queue_name = "request_queue" +  prefix 
+        self._redis_response_pb_prefix = "response_pb_"  + prefix
         self._redis = Redis(host=self._redis_host, port=self._redis_port)
         self._response_pb = self._redis.pubsub(ignore_subscribe_messages=True)
         self._setup()
@@ -411,12 +468,12 @@ class _RedisClient(_RedisAgent):
 
     def send_request(self, task_id, request_id, model_input):
         message = (self._redis_id, task_id, request_id, model_input)
-        self._redis.lpush(self._redis_request_queue_name, json.dumps(message))
+        self._redis.lpush(self._redis_request_queue_name, pickle.dumps(message))
 
     def recv_response(self, timeout):
         message = self._response_pb.get_message(timeout=timeout)
         if message:
-            return json.loads(message["data"])
+            return pickle.loads(message["data"])
 
 
 class _RedisServer(_RedisAgent):
@@ -433,4 +490,4 @@ class _RedisServer(_RedisAgent):
     def send_response(self, client_id, task_id, request_id, model_output):
         message = (task_id, request_id, model_output)
         channel_name = self._response_pb_name(client_id)
-        self._redis.publish(channel_name, json.dumps(message))
+        self._redis.publish(channel_name, pickle.dumps(message))

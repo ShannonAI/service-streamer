@@ -9,7 +9,7 @@
   <a href="#五分钟搭建bert服务">五分钟搭建BERT服务</a> •
   <a href="#api介绍">API介绍</a> •
   <a href="#基准测试">基准测试</a> •
-  
+  <a href="#常见问题">常见问题</a> •
 </p>
 
 
@@ -19,10 +19,10 @@
 <h2 align="center">这是什么</h2>
 
 深度学习模型在训练和测试时，通常使用小批量(mini-batch)的方式将样本组装在一起，这样能充分利用GPU的并行计算特性，加快运算速度。
-但在将使用了深度学习模型的服务部署上线的时候，由于用户请求通常是离散和单次的，若采取传统的同步阻塞式的消息通信机制，
-在短时间内有大量请求时，会造成计算资源闲置，用户等待时间变长。
+但在将使用了深度学习模型的服务部署上线的时候，由于用户请求通常是离散和单次的，若采取传统的循环服务器或多线程服务器， 
+会造成GPU计算资源浪费，用户等待时间线性增加。更严重的是在大量并发请求时，会造成CUDA out-of-memory error，导致服务宕机。
 
-ServiceStreamer是一个中间件，将服务请求排队组成一个完整的batch，再送进GPU运算。牺牲一定的排队的时间（默认最大0.1s），提升整体性能，极大提高GPU利用率。
+ServiceStreamer是一个中间件，将服务请求排队组成一个完整的batch，再送进GPU运算。牺牲最小的时延（默认最大0.1s），提升整体性能，极大提高GPU利用率。
 
 <h2 align="center">功能特色</h2>
 
@@ -53,9 +53,9 @@ pip install service_streamer
         ...
 
 
-    batch = ["twinkle twinkle [MASK] star",
-             "Happy birthday to [MASK]",
-             'the answer to life, the [MASK], and everything']
+    batch = ["twinkle twinkle [MASK] star.",
+             "Happy birthday to [MASK].",
+             'the answer to life, the [MASK], and everything.']
     model = TextInfillingModel()
     outputs = model.predict(batch)
     print(outputs)
@@ -83,7 +83,7 @@ pip install service_streamer
     运行[flask_example.py](./example/flask_example.py)，即可得到一个朴素的web服务器
     
     ```bash
-    curl -X POST http://localhost:5005/naive -d 's=Happy birthday to [MASK]' 
+    curl -X POST http://localhost:5005/naive -d 's=Happy birthday to [MASK].' 
     ["you"]
     ```
     
@@ -114,9 +114,7 @@ pip install service_streamer
 4. 最后，我们利用``Streamer``封装模型，启动多个GPU worker，充分利用多卡性能实现每秒1000+句(80倍QPS)
 
     ```python
-    import multiprocessing
     from service_streamer import ManagedModel, Streamer
-    multiprocessing.set_start_method("spawn", force=True)
 
     class ManagedBertModel(ManagedModel):
 
@@ -167,7 +165,6 @@ outpus = streamer.predict(batch_inputs)
 实际项目中web server的性能(QPS)远高于GPU模型的性能，所以我们支持一个web server搭配多个GPU worker进程。
 
 ```python
-import multiprocessing; multiprocessing.set_start_method("spawn", force=True)
 from service_streamer import Streamer
 
 # spawn出4个gpu worker进程
@@ -246,7 +243,7 @@ streamer = ThreadedStreamer(model.predict, 64, 0.1)
 
 xs = []
 for i in range(200):
-    future = streamer.submit([["How", "are", "you", "?"], ["Fine", "."], ["Thank", "you", "."]])
+    future = streamer.submit(["Happy birthday to [MASK]", "Today is my lucky [MASK]"])
     xs.append(future)
 
 # 先拿到所有future对象，再等待异步返回
@@ -276,9 +273,9 @@ for future in xs:
 python example/flask_example.py
 
 # benchmark naive api without service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/naive
+./wrk -t 4 -c 128 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/naive
 # benchmark stream api with service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+./wrk -t 4 -c 128 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/stream
 ```
 
 | |Naive|ThreaedStreamer|Streamer|RedisStreamer
@@ -292,7 +289,7 @@ python example/flask_example.py
 Flask多线程server已经成为性能瓶颈，故采用gevent server，代码参考[flask_multigpu_example.py](example/flask_multigpu_example.py)
 
 ```bash
-./wrk -t 8 -c 512 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+./wrk -t 8 -c 512 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/stream
 ```
 
 | gpu_worker_num | Naive | ThreadedStreamer |Streamer|RedisStreamer
@@ -316,3 +313,47 @@ Flask多线程server已经成为性能瓶颈，故采用gevent server，代码�
 |4|N/A|N/A|1400.12|1356.47|
 
 可以看出``service_streamer``的性能跟gpu worker数量几乎成线性关系，其中进程间通信的效率略高于redis通信。
+
+<h2 align="center">常见问题</h2>
+
+**Q:** 使用[allennlp](https://github.com/allenai/allennlp)训练得到的模型，在推理阶段，[Streamer](./service_streamer/service_streamer.py)中设置``worker_num=4``，为什么16核cpu全部跑满，且模型计算速度反而不如``worker_num=1``？
+
+**A:** 在多进程的模型推理计算时，如果模型依赖numpy进行数据处理，且numpy默认使用了多线程，则有可能造成cpu负载过大，使得多核计算速度反而不如单核。该类问题在使用allennlp、spacy等第三方库时可能出现，可以通过设置``numpy threads``环境变量解决。
+   ```python
+   import os
+   os.environ["MKL_NUM_THREADS"] = "1"  # export MKL_NUM_THREADS=1 
+   os.environ["NUMEXPR_NUM_THREADS"] = "1"  # export NUMEXPR_NUM_THREADS=1 
+   os.environ["OMP_NUM_THREADS"] = "1"  # export OMP_NUM_THREADS=1
+   import numpy
+   ```
+   注意要将``os``环境变量的设置放在``import numpy``之前。
+
+**Q:** 使用RedisStreamer时，在共用同一个redis broker的情况下，如果有不止一个模型，各种待处理的batch可能会有个不同的结构，从而造成冲突怎么办？
+
+**A:** 指定prefix参数，此时会使用redis的不同频道，从而避免冲突
+
+启动worker的方法:  
+      
+```python
+from service_streamer import run_redis_workers_forever
+from bert_model import ManagedBertModel
+
+if __name__ == "__main__":
+    from multiprocessing import freeze_support
+    freeze_support()
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_1')
+    run_redis_workers_forever(ManagedBertModel, 64, prefix='channel_2')
+```
+
+接下来在另一个文件中定义streamer并得到模型结果:  
+    
+```python
+from service_streamer import RedisStreamer
+
+streamer_1 = RedisStreaemr(prefix='channel_1')
+streamer_2 = RedisStreaemr(prefix='channel_2')
+
+# predict
+output_1 = streamer_1.predict(batch)
+output_2 = streamer_2.predict(batch)
+```
