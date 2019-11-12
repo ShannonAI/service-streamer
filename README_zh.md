@@ -68,12 +68,9 @@ pip install service_streamer
 
     ```python
     model = TextInfillingModel()
-    @app.route("/naive", methods=["GET", "POST"])
+    @app.route("/naive", methods=["POST"])
     def naive_predict():
-        if request.method == "GET":
-            inputs = request.args.getlist("s")
-        else:
-            inputs = request.form.getlist("s")
+        inputs = request.form.getlist("s")
         outputs = model.predict(inputs)
         return jsonify(outputs)
      
@@ -106,7 +103,7 @@ pip install service_streamer
     
     同样运行[flask_example.py](./example/flask_example.py)，用[wrk](https://github.com/wg/wrk)测试一下性能
     ```bash
-    ./wrk -t 2 -c 128 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/stream
+    wrk -t 2 -c 128 -d 20s --timeout=10s -s benchmark.lua http://127.0.0.1:5005/stream
     ...
     Requests/sec:    200.31
     ```
@@ -273,9 +270,9 @@ for future in xs:
 python example/flask_example.py
 
 # benchmark naive api without service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/naive
+wrk -t 4 -c 128 -d 20s --timeout=10s -s benchmark.lua http://127.0.0.1:5005/naive
 # benchmark stream api with service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/stream
+wrk -t 4 -c 128 -d 20s --timeout=10s -s benchmark.lua http://127.0.0.1:5005/stream
 ```
 
 | |Naive|ThreaedStreamer|Streamer|RedisStreamer
@@ -289,7 +286,7 @@ python example/flask_example.py
 Flask多线程server已经成为性能瓶颈，故采用gevent server，代码参考[flask_multigpu_example.py](example/flask_multigpu_example.py)
 
 ```bash
-./wrk -t 8 -c 512 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/stream
+wrk -t 8 -c 512 -d 20s --timeout=10s -s benchmark.lua http://127.0.0.1:5005/stream
 ```
 
 | gpu_worker_num | Naive | ThreadedStreamer |Streamer|RedisStreamer
