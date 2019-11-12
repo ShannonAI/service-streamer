@@ -76,7 +76,6 @@ class _BaseStreamer(object):
 
         self.back_thread = threading.Thread(target=self._loop_collect_result, name="thread_collect_result")
         self.back_thread.daemon = True
-        self.lock = threading.Lock()
 
     def _delay_setup(self):
         self.back_thread.start()
@@ -92,10 +91,8 @@ class _BaseStreamer(object):
         input a batch, distribute each item to mq, return task_id
         """
         # task id in one client
-        self.lock.acquire()
         task_id = self._task_id
         self._task_id += 1
-        self.lock.release()
         # request id in one task
         request_id = 0
 
