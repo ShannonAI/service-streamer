@@ -1,11 +1,11 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/30
-from gevent import monkey; monkey.patch_all()
 from flask import Flask, request, jsonify
+from gevent import monkey; monkey.patch_all()
 from gevent.pywsgi import WSGIServer
 
+from bert_model import ManagedBertModel, TextInfillingModel as Model
 from service_streamer import Streamer
-from bert_model import ManagedBertModel
 
 app = Flask(__name__)
 model = None
@@ -28,5 +28,5 @@ def stream_predict():
 
 if __name__ == "__main__":
     streamer = Streamer(ManagedBertModel, batch_size=64, max_latency=0.1, worker_num=4, cuda_devices=(0, 1, 2, 3))
-
+    model = Model()
     WSGIServer(("0.0.0.0", 5005), app).serve_forever()

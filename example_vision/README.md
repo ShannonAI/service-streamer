@@ -20,5 +20,5 @@ curl -F "file=@cat.jpg" http://127.0.0.1:5005/stream_predict
 
 ## benchmark
 ```bash
-./wrk -c 128 -d 20s --timeout=20s -s file.lua http://127.0.0.1:5005/stream_predict
+wrk -c 128 -d 20s --timeout=20s -s file.lua http://127.0.0.1:5005/stream_predict
 ```

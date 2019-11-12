@@ -20,7 +20,6 @@ TIME_SLEEP = 0.001
 WORKER_TIMEOUT = 20
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
-mp = multiprocessing.get_context("spawn")
 
 
 class Future(object):
@@ -257,12 +256,14 @@ class ThreadedWorker(_BaseStreamWorker):
 
 class Streamer(_BaseStreamer):
     def __init__(self, predict_function_or_model, batch_size, max_latency=0.1, worker_num=1,
-                 cuda_devices=None, model_init_args=None, model_init_kwargs=None, wait_for_worker_ready=False):
+                 cuda_devices=None, model_init_args=None, model_init_kwargs=None, wait_for_worker_ready=False,
+                 mp_start_method='spawn'):
         super().__init__()
         self.worker_num = worker_num
         self.cuda_devices = cuda_devices
-        self._input_queue = mp.Queue()
-        self._output_queue = mp.Queue()
+        self.mp = multiprocessing.get_context(mp_start_method)
+        self._input_queue = self.mp.Queue()
+        self._output_queue = self.mp.Queue()
         self._worker = StreamWorker(predict_function_or_model, batch_size, max_latency,
                                     self._input_queue, self._output_queue,
                                     model_init_args, model_init_kwargs)
@@ -276,14 +277,14 @@ class Streamer(_BaseStreamer):
 
     def _setup_gpu_worker(self):
         for i in range(self.worker_num):
-            ready_event = mp.Event()
-            destroy_event = mp.Event()
+            ready_event = self.mp.Event()
+            destroy_event = self.mp.Event()
             if self.cuda_devices is not None:
                 gpu_id = self.cuda_devices[i % len(self.cuda_devices)]
                 args = (gpu_id, ready_event, destroy_event)
             else:
                 args = (None, ready_event, destroy_event)
-            p = mp.Process(target=self._worker.run_forever, args=args, name="stream_worker", daemon=True)
+            p = self.mp.Process(target=self._worker.run_forever, args=args, name="stream_worker", daemon=True)
             p.start()
             self._worker_ps.append(p)
             self._worker_ready_events.append(ready_event)
@@ -431,8 +432,9 @@ def _setup_redis_worker_and_runforever(model_class, batch_size, max_latency, gpu
 
 def run_redis_workers_forever(model_class, batch_size, max_latency=0.1,
                               worker_num=1, cuda_devices=None, redis_broker="localhost:6379",
-                              prefix='', model_init_args=None, model_init_kwargs=None):
+                              prefix='', mp_start_method='spawn', model_init_args=None, model_init_kwargs=None):
     procs = []
+    mp = multiprocessing.get_context(mp_start_method)
     for i in range(worker_num):
         if cuda_devices is not None:
             gpu_id = cuda_devices[i % len(cuda_devices)]

@@ -14,8 +14,8 @@ torch.cuda.manual_seed(SEED)
 
 
 class TextInfillingModel(object):
-    def __init__(self, max_sent_len=16):
-        self.model_path = "bert-base-uncased"
+    def __init__(self, max_sent_len=16, model_path="bert-base-uncased"):
+        self.model_path = model_path
         self.tokenizer = BertTokenizer.from_pretrained(self.model_path)
         self.bert = BertForMaskedLM.from_pretrained(self.model_path)
         self.bert.eval()
