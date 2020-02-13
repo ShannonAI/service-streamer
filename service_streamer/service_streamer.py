@@ -149,6 +149,10 @@ class _BaseStreamWorker(object):
         self._max_latency = max_latency
         self._destroy_event = kwargs.get("destroy_event", None)
 
+        warm_up_batch = kwargs.get("warm_up", None)
+        if warm_up_batch:
+            self._predict(warm_up_batch)
+
     def run_forever(self, *args, **kwargs):
         self._pid = os.getpid()  # overwrite the pid
         logger.info("[gpu worker %d] %s start working" % (self._pid, self))
