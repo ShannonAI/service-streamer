@@ -381,7 +381,7 @@ class RedisWorker(_BaseStreamWorker):
                  model_init_args=None, model_init_kwargs=None, *args, **kwargs):
         # assert issubclass(model_class, ManagedModel)
         super().__init__(model_class, batch_size, max_latency, *args, **kwargs)
-        
+
         self.prefix = prefix
         self._model_init_args = model_init_args or []
         self._model_init_kwargs = model_init_kwargs or {}
@@ -425,8 +425,10 @@ class RedisWorker(_BaseStreamWorker):
         self._redis.send_response(client_id, task_id, request_id, model_output)
 
 
-def _setup_redis_worker_and_runforever(model_class, batch_size, max_latency, gpu_id, redis_broker, prefix=''):
-    redis_worker = RedisWorker(model_class, batch_size, max_latency, redis_broker=redis_broker, prefix=prefix)
+def _setup_redis_worker_and_runforever(model_class, batch_size, max_latency, gpu_id,
+                                       redis_broker, prefix='', model_init_args=None, model_init_kwargs=None):
+    redis_worker = RedisWorker(model_class, batch_size, max_latency, redis_broker=redis_broker, prefix=prefix,
+                               model_init_args=model_init_args, model_init_kwargs=model_init_kwargs)
     redis_worker.run_forever(gpu_id)
 
 
@@ -440,7 +442,7 @@ def run_redis_workers_forever(model_class, batch_size, max_latency=0.1,
             gpu_id = cuda_devices[i % len(cuda_devices)]
         else:
             gpu_id = None
-        args = [model_class, batch_size, max_latency, gpu_id, redis_broker, prefix]
+        args = [model_class, batch_size, max_latency, gpu_id, redis_broker, prefix, model_init_args, model_init_kwargs]
         p = mp.Process(target=_setup_redis_worker_and_runforever, args=args, name="stream_worker", daemon=True)
         p.start()
         procs.append(p)
@@ -454,7 +456,7 @@ class _RedisAgent(object):
         self._redis_id = redis_id
         self._redis_host = redis_broker.split(":")[0]
         self._redis_port = int(redis_broker.split(":")[1])
-        self._redis_request_queue_name = "request_queue" +  prefix 
+        self._redis_request_queue_name = "request_queue" +  prefix
         self._redis_response_pb_prefix = "response_pb_"  + prefix
         self._redis = Redis(host=self._redis_host, port=self._redis_port)
         self._response_pb = self._redis.pubsub(ignore_subscribe_messages=True)
