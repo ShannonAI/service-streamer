@@ -75,6 +75,7 @@ class _BaseStreamer(object):
 
         self.back_thread = threading.Thread(target=self._loop_collect_result, name="thread_collect_result")
         self.back_thread.daemon = True
+        self.lock = threading.Lock()
 
     def _delay_setup(self):
         self.back_thread.start()
@@ -90,8 +91,10 @@ class _BaseStreamer(object):
         input a batch, distribute each item to mq, return task_id
         """
         # task id in one client
+        self.lock.acquire()
         task_id = self._task_id
         self._task_id += 1
+        self.lock.release()
         # request id in one task
         request_id = 0
 
@@ -129,6 +132,7 @@ class _BaseStreamer(object):
     def predict(self, batch):
         task_id = self._input(batch)
         ret = self._output(task_id)
+        assert len(batch) == len(ret), "input batch size {} and output batch size {} must be equal.".format(len(batch), len(ret))
         return ret
 
     def destroy_workers(self):
@@ -160,6 +164,7 @@ class _BaseStreamWorker(object):
 
     def model_predict(self, batch_input):
         batch_result = self._predict(batch_input)
+        assert len(batch_input) == len(batch_result), "input batch size {} and output batch size {} must be equal.".format(len(batch_input), len(batch_result))
         return batch_result
 
     def _run_once(self):
@@ -251,12 +256,14 @@ class ThreadedWorker(_BaseStreamWorker):
 
 class Streamer(_BaseStreamer):
     def __init__(self, predict_function_or_model, batch_size, max_latency=0.1, worker_num=1,
-                 cuda_devices=None, model_init_args=None, model_init_kwargs=None):
+                 cuda_devices=None, model_init_args=None, model_init_kwargs=None, wait_for_worker_ready=False,
+                 mp_start_method='spawn'):
         super().__init__()
         self.worker_num = worker_num
         self.cuda_devices = cuda_devices
-        self._input_queue = mp.Queue()
-        self._output_queue = mp.Queue()
+        self.mp = multiprocessing.get_context(mp_start_method)
+        self._input_queue = self.mp.Queue()
+        self._output_queue = self.mp.Queue()
         self._worker = StreamWorker(predict_function_or_model, batch_size, max_latency,
                                     self._input_queue, self._output_queue,
                                     model_init_args, model_init_kwargs)
@@ -264,18 +271,20 @@ class Streamer(_BaseStreamer):
         self._worker_ready_events = []
         self._worker_destroy_events = []
         self._setup_gpu_worker()
+        if wait_for_worker_ready:
+            self._wait_for_worker_ready()
         self._delay_setup()
 
     def _setup_gpu_worker(self):
         for i in range(self.worker_num):
-            ready_event = mp.Event()
-            destroy_event = mp.Event()
+            ready_event = self.mp.Event()
+            destroy_event = self.mp.Event()
             if self.cuda_devices is not None:
                 gpu_id = self.cuda_devices[i % len(self.cuda_devices)]
                 args = (gpu_id, ready_event, destroy_event)
             else:
                 args = (None, ready_event, destroy_event)
-            p = mp.Process(target=self._worker.run_forever, args=args, name="stream_worker", daemon=True)
+            p = self.mp.Process(target=self._worker.run_forever, args=args, name="stream_worker", daemon=True)
             p.start()
             self._worker_ps.append(p)
             self._worker_ready_events.append(ready_event)
@@ -372,7 +381,7 @@ class RedisWorker(_BaseStreamWorker):
                  model_init_args=None, model_init_kwargs=None, *args, **kwargs):
         # assert issubclass(model_class, ManagedModel)
         super().__init__(model_class, batch_size, max_latency, *args, **kwargs)
-        
+
         self.prefix = prefix
         self._model_init_args = model_init_args or []
         self._model_init_kwargs = model_init_kwargs or {}
@@ -416,21 +425,24 @@ class RedisWorker(_BaseStreamWorker):
         self._redis.send_response(client_id, task_id, request_id, model_output)
 
 
-def _setup_redis_worker_and_runforever(model_class, batch_size, max_latency, gpu_id, redis_broker, prefix=''):
-    redis_worker = RedisWorker(model_class, batch_size, max_latency, redis_broker=redis_broker, prefix=prefix)
+def _setup_redis_worker_and_runforever(model_class, batch_size, max_latency, gpu_id,
+                                       redis_broker, prefix='', model_init_args=None, model_init_kwargs=None):
+    redis_worker = RedisWorker(model_class, batch_size, max_latency, redis_broker=redis_broker, prefix=prefix,
+                               model_init_args=model_init_args, model_init_kwargs=model_init_kwargs)
     redis_worker.run_forever(gpu_id)
 
 
 def run_redis_workers_forever(model_class, batch_size, max_latency=0.1,
                               worker_num=1, cuda_devices=None, redis_broker="localhost:6379",
-                              prefix='', model_init_args=None, model_init_kwargs=None):
+                              prefix='', mp_start_method='spawn', model_init_args=None, model_init_kwargs=None):
     procs = []
+    mp = multiprocessing.get_context(mp_start_method)
     for i in range(worker_num):
         if cuda_devices is not None:
             gpu_id = cuda_devices[i % len(cuda_devices)]
         else:
             gpu_id = None
-        args = [model_class, batch_size, max_latency, gpu_id, redis_broker, prefix]
+        args = [model_class, batch_size, max_latency, gpu_id, redis_broker, prefix, model_init_args, model_init_kwargs]
         p = mp.Process(target=_setup_redis_worker_and_runforever, args=args, name="stream_worker", daemon=True)
         p.start()
         procs.append(p)
@@ -444,7 +456,7 @@ class _RedisAgent(object):
         self._redis_id = redis_id
         self._redis_host = redis_broker.split(":")[0]
         self._redis_port = int(redis_broker.split(":")[1])
-        self._redis_request_queue_name = "request_queue" +  prefix 
+        self._redis_request_queue_name = "request_queue" +  prefix
         self._redis_response_pb_prefix = "response_pb_"  + prefix
         self._redis = Redis(host=self._redis_host, port=self._redis_port)
         self._response_pb = self._redis.pubsub(ignore_subscribe_messages=True)

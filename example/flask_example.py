@@ -1,10 +1,10 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/30
 
-import multiprocessing as mp
-from flask import Flask, request, jsonify
-from service_streamer import ThreadedStreamer, Streamer
 from bert_model import TextInfillingModel as Model
+from flask import Flask, request, jsonify
+
+from service_streamer import ThreadedStreamer
 
 app = Flask(__name__)
 model = None

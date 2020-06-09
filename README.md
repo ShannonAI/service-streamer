@@ -79,12 +79,9 @@ We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. Th
 
     ```python
     model = TextInfillingModel()
-    @app.route("/naive", methods=["GET", "POST"])
+    @app.route("/naive", methods=["POST"])
     def naive_predict():
-        if request.method == "GET":
-            inputs = request.args.getlist("s")
-        else:
-            inputs = request.form.getlist("s")
+        inputs = request.form.getlist("s")
         outputs = model.predict(inputs)
         return jsonify(outputs)
      
@@ -119,7 +116,7 @@ We provide a step-by-step tutorial for you to bring BERT online in 5 minutes. Th
     Run [flask_example.py](./example/flask_example.py) and test the performance with [wrk](https://github.com/wg/wrk). 
 
     ```bash
-    ./wrk -t 2 -c 128 -d 20s --timeout=10s -s example/benchmark.lua http://127.0.0.1:5005/stream
+    wrk -t 2 -c 128 -d 20s --timeout=10s -s benchmark.lua http://127.0.0.1:5005/stream
     ...
     Requests/sec:    200.31
     ```
@@ -295,9 +292,9 @@ Test examples and scripts can be found in [example](./example).
 python example/flask_example.py
 
 # benchmark naive api without service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/naive
+wrk -t 4 -c 128 -d 20s --timeout=10s -s benchmark.lua http://127.0.0.1:5005/naive
 # benchmark stream api with service_streamer
-./wrk -t 4 -c 128 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+wrk -t 4 -c 128 -d 20s --timeout=10s -s benchmark.lua http://127.0.0.1:5005/stream
 ```
 
 | |Naive|ThreaedStreamer|Streamer|RedisStreamer
@@ -313,7 +310,7 @@ We adopt gevent server because multi-threaded Flask server has become a performa
 
 
 ```bash
-./wrk -t 8 -c 512 -d 20s --timeout=10s -s scripts/streamer.lua http://127.0.0.1:5005/stream
+wrk -t 8 -c 512 -d 20s --timeout=10s -s benchmark.lua http://127.0.0.1:5005/stream
 ```
 
 | gpu_worker_num | Naive | ThreadedStreamer |Streamer|RedisStreamer
