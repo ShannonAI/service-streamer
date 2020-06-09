@@ -1,7 +1,7 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/13
 import logging
-import multiprocessing as mp
+import multiprocessing
 import os
 import threading
 import time
@@ -176,6 +176,9 @@ class _BaseStreamWorker(object):
             except TimeoutError:
                 # each item timeout exceed the max latency
                 break
+            except Exception as e:
+                logger.warning('_run_once: an exception occurs in _recv_request, %s', str(e))
+                break
             else:
                 batch.append(item)
             if (time.time() - start_time) > self._max_latency:
@@ -190,7 +193,10 @@ class _BaseStreamWorker(object):
         # publish results to redis
         for i, item in enumerate(batch):
             client_id, task_id, request_id, _ = item
-            self._send_response(client_id, task_id, request_id, model_outputs[i])
+            try:
+                self._send_response(client_id, task_id, request_id, model_outputs[i])
+            except Exception as e:
+                logger.warning('_run_once: an exception occurs in _send_response, %s', str(e))
 
         batch_size = len(batch)
         logger.info("[gpu worker %d] run_once batch_size: %d start_at: %s spend: %s" % (
@@ -372,7 +378,12 @@ class RedisStreamer(_BaseStreamer):
         self._redis.send_request(task_id, request_id, model_input)
 
     def _recv_response(self, timeout=TIMEOUT):
-        return self._redis.recv_response(timeout)
+        try:
+            message = self._redis.recv_response(timeout)
+        except Exception as e:
+            logger.warning('_recv_response: an exception occurs in recv_response, %s', str(e))
+            message = None
+        return message
 
 
 class RedisWorker(_BaseStreamWorker):
