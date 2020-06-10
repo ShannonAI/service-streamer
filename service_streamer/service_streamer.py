@@ -11,7 +11,7 @@ import pickle
 from queue import Queue, Empty
 from typing import List
 
-from redis import Redis
+from redis import Redis, RedisError
 
 from .managed_model import ManagedModel
 
@@ -132,7 +132,8 @@ class _BaseStreamer(object):
     def predict(self, batch):
         task_id = self._input(batch)
         ret = self._output(task_id)
-        assert len(batch) == len(ret), "input batch size {} and output batch size {} must be equal.".format(len(batch), len(ret))
+        assert len(batch) == len(ret), "input batch size {} and output batch size {} must be equal.".format(
+            len(batch), len(ret))
         return ret
 
     def destroy_workers(self):
@@ -164,7 +165,9 @@ class _BaseStreamWorker(object):
 
     def model_predict(self, batch_input):
         batch_result = self._predict(batch_input)
-        assert len(batch_input) == len(batch_result), "input batch size {} and output batch size {} must be equal.".format(len(batch_input), len(batch_result))
+        assert len(batch_input) == len(
+            batch_result), "input batch size {} and output batch size {} must be equal.".format(
+            len(batch_input), len(batch_result))
         return batch_result
 
     def _run_once(self):
@@ -215,7 +218,7 @@ class ThreadedStreamer(_BaseStreamer):
         super().__init__()
         self._input_queue = Queue()
         self._output_queue = Queue()
-        self._worker_destroy_event=threading.Event()
+        self._worker_destroy_event = threading.Event()
         self._worker = ThreadedWorker(predict_function, batch_size, max_latency,
                                       self._input_queue, self._output_queue,
                                       destroy_event=self._worker_destroy_event)
@@ -467,8 +470,8 @@ class _RedisAgent(object):
         self._redis_id = redis_id
         self._redis_host = redis_broker.split(":")[0]
         self._redis_port = int(redis_broker.split(":")[1])
-        self._redis_request_queue_name = "request_queue" +  prefix
-        self._redis_response_pb_prefix = "response_pb_"  + prefix
+        self._redis_request_queue_name = "request_queue" + prefix
+        self._redis_response_pb_prefix = "response_pb_" + prefix
         self._redis = Redis(host=self._redis_host, port=self._redis_port)
         self._response_pb = self._redis.pubsub(ignore_subscribe_messages=True)
         self._setup()
@@ -489,9 +492,13 @@ class _RedisClient(_RedisAgent):
         self._redis.lpush(self._redis_request_queue_name, pickle.dumps(message))
 
     def recv_response(self, timeout):
-        message = self._response_pb.get_message(timeout=timeout)
-        if message:
-            return pickle.loads(message["data"])
+        try:
+            message = self._response_pb.get_message(timeout=timeout)
+            if message:
+                return pickle.loads(message["data"])
+        except RedisError as e:
+            logger.warning('recv_response: redis error occurs in get_message, %s', str(e))
+            self._setup()  # 重新订阅
 
 
 class _RedisServer(_RedisAgent):
@@ -500,10 +507,14 @@ class _RedisServer(_RedisAgent):
         self._response_pb.psubscribe(self._redis_response_pb_prefix + "*")
 
     def recv_request(self, timeout):
-        message = self._redis.blpop(self._redis_request_queue_name, timeout=timeout)
-        # (queue_name, data)
-        if message:
-            return message[1]
+        try:
+            message = self._redis.blpop(self._redis_request_queue_name, timeout=timeout)
+            # (queue_name, data)
+            if message:
+                return message[1]
+        except RedisError as e:
+            logger.warning('recv_request: redis error occurs in blpop, %s', str(e))
+            return None
 
     def send_response(self, client_id, task_id, request_id, model_output):
         message = (task_id, request_id, model_output)
