@@ -179,9 +179,6 @@ class _BaseStreamWorker(object):
             except TimeoutError:
                 # each item timeout exceed the max latency
                 break
-            except Exception as e:
-                logger.warning('_run_once: an exception occurs in _recv_request, %s', str(e))
-                break
             else:
                 batch.append(item)
             if (time.time() - start_time) > self._max_latency:
