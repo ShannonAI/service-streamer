@@ -17,7 +17,7 @@ from .managed_model import ManagedModel
 
 TIMEOUT = 1
 TIME_SLEEP = 0.001
-WORKER_TIMEOUT = 2000
+WORKER_TIMEOUT = 20
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
 
@@ -72,6 +72,7 @@ class _BaseStreamer(object):
         self._client_id = str(uuid.uuid4())
         self._task_id = 0
         self._future_cache = _FutureCache()  # {task_id: future}
+        self._worker_timeout = kwargs.get("worker_timeout", WORKER_TIMEOUT)
 
         self.back_thread = threading.Thread(target=self._loop_collect_result, name="thread_collect_result")
         self.back_thread.daemon = True
@@ -121,7 +122,7 @@ class _BaseStreamer(object):
 
     def _output(self, task_id: int) -> List:
         future = self._future_cache[task_id]
-        batch_result = future.result(WORKER_TIMEOUT)
+        batch_result = future.result(self._worker_timeout)
         return batch_result
 
     def submit(self, batch):
@@ -205,8 +206,8 @@ class _BaseStreamWorker(object):
 
 
 class ThreadedStreamer(_BaseStreamer):
-    def __init__(self, predict_function, batch_size, max_latency=0.1):
-        super().__init__()
+    def __init__(self, predict_function, batch_size, max_latency=0.1, worker_timeout=WORKER_TIMEOUT):
+        super().__init__(worker_timeout=worker_timeout)
         self._input_queue = Queue()
         self._output_queue = Queue()
         self._worker_destroy_event=threading.Event()
@@ -230,7 +231,7 @@ class ThreadedStreamer(_BaseStreamer):
 
     def destroy_workers(self):
         self._worker_destroy_event.set()
-        self._worker_thread.join(timeout=WORKER_TIMEOUT)
+        self._worker_thread.join(timeout=self._worker_timeout)
         if self._worker_thread.is_alive():
             raise TimeoutError("worker_thread destroy timeout")
         logger.info("workers destroyed")
