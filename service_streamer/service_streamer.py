@@ -15,9 +15,9 @@ from redis import Redis
 
 from .managed_model import ManagedModel
 
-TIMEOUT = 100
+TIMEOUT = 1
 TIME_SLEEP = 0.001
-WORKER_TIMEOUT = 20
+WORKER_TIMEOUT = 2000
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
 
