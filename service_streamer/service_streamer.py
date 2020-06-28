@@ -108,7 +108,7 @@ class _BaseStreamer(object):
         return task_id
 
     def _loop_collect_result(self):
-        logger.info("start _loop_collect_result")
+        logger.info("start _loop_collect_result for client_id: %s", self._client_id)
         while True:
             message = self._recv_response(timeout=TIMEOUT)
             if message:
@@ -118,6 +118,7 @@ class _BaseStreamer(object):
             else:
                 # todo
                 time.sleep(TIME_SLEEP)
+                logger.info("receive no message, next loop")
 
     def _output(self, task_id: int) -> List:
         future = self._future_cache[task_id]
@@ -130,6 +131,7 @@ class _BaseStreamer(object):
         return future
 
     def predict(self, batch):
+        logger.info("collect thread is alive: %s", self.back_thread.is_alive())
         task_id = self._input(batch)
         ret = self._output(task_id)
         assert len(batch) == len(ret), "input batch size {} and output batch size {} must be equal.".format(
