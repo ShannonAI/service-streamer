@@ -18,6 +18,7 @@ from .managed_model import ManagedModel
 TIMEOUT = 1
 TIME_SLEEP = 0.001
 WORKER_TIMEOUT = 20
+HEALTH_CHECK_TIMEOUT = 30
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
 
@@ -118,7 +119,6 @@ class _BaseStreamer(object):
             else:
                 # todo
                 time.sleep(TIME_SLEEP)
-                logger.info("receive no message, next loop")
 
     def _output(self, task_id: int) -> List:
         future = self._future_cache[task_id]
@@ -131,7 +131,6 @@ class _BaseStreamer(object):
         return future
 
     def predict(self, batch):
-        logger.info("collect thread is alive: %s", self.back_thread.is_alive())
         task_id = self._input(batch)
         ret = self._output(task_id)
         assert len(batch) == len(ret), "input batch size {} and output batch size {} must be equal.".format(
@@ -471,7 +470,7 @@ class _RedisAgent(object):
         self._redis_port = int(redis_broker.split(":")[1])
         self._redis_request_queue_name = "request_queue" + prefix
         self._redis_response_pb_prefix = "response_pb_" + prefix
-        self._redis = Redis(host=self._redis_host, port=self._redis_port)
+        self._redis = Redis(host=self._redis_host, port=self._redis_port, health_check_interval=HEALTH_CHECK_TIMEOUT)
         self._response_pb = self._redis.pubsub(ignore_subscribe_messages=True)
         self._setup()
 
@@ -502,8 +501,9 @@ class _RedisClient(_RedisAgent):
 
 class _RedisServer(_RedisAgent):
     def _setup(self):
-        # server subscribe all pubsub
-        self._response_pb.psubscribe(self._redis_response_pb_prefix + "*")
+        # no need, if subscribe all response_pb_* and not read,
+        # redis will report error that client is scheduled to be closed ASAP for overcoming of output buffer limits
+        pass
 
     def recv_request(self, timeout):
         try:
