@@ -72,6 +72,7 @@ class _BaseStreamer(object):
         self._client_id = str(uuid.uuid4())
         self._task_id = 0
         self._future_cache = _FutureCache()  # {task_id: future}
+        self._worker_timeout = kwargs.get("worker_timeout", WORKER_TIMEOUT)
 
         self.back_thread = threading.Thread(target=self._loop_collect_result, name="thread_collect_result")
         self.back_thread.daemon = True
@@ -121,7 +122,7 @@ class _BaseStreamer(object):
 
     def _output(self, task_id: int) -> List:
         future = self._future_cache[task_id]
-        batch_result = future.result(WORKER_TIMEOUT)
+        batch_result = future.result(self._worker_timeout)
         return batch_result
 
     def submit(self, batch):
@@ -205,8 +206,8 @@ class _BaseStreamWorker(object):
 
 
 class ThreadedStreamer(_BaseStreamer):
-    def __init__(self, predict_function, batch_size, max_latency=0.1):
-        super().__init__()
+    def __init__(self, predict_function, batch_size, max_latency=0.1, worker_timeout=WORKER_TIMEOUT):
+        super().__init__(worker_timeout=worker_timeout)
         self._input_queue = Queue()
         self._output_queue = Queue()
         self._worker_destroy_event=threading.Event()
@@ -230,7 +231,7 @@ class ThreadedStreamer(_BaseStreamer):
 
     def destroy_workers(self):
         self._worker_destroy_event.set()
-        self._worker_thread.join(timeout=WORKER_TIMEOUT)
+        self._worker_thread.join(timeout=self._worker_timeout)
         if self._worker_thread.is_alive():
             raise TimeoutError("worker_thread destroy timeout")
         logger.info("workers destroyed")
@@ -257,8 +258,8 @@ class ThreadedWorker(_BaseStreamWorker):
 class Streamer(_BaseStreamer):
     def __init__(self, predict_function_or_model, batch_size, max_latency=0.1, worker_num=1,
                  cuda_devices=None, model_init_args=None, model_init_kwargs=None, wait_for_worker_ready=False,
-                 mp_start_method='spawn'):
-        super().__init__()
+                 mp_start_method='spawn', worker_timeout=WORKER_TIMEOUT):
+        super().__init__(worker_timeout=worker_timeout)
         self.worker_num = worker_num
         self.cuda_devices = cuda_devices
         self.mp = multiprocessing.get_context(mp_start_method)
@@ -290,7 +291,9 @@ class Streamer(_BaseStreamer):
             self._worker_ready_events.append(ready_event)
             self._worker_destroy_events.append(destroy_event)
 
-    def _wait_for_worker_ready(self, timeout=WORKER_TIMEOUT):
+    def _wait_for_worker_ready(self, timeout=None):
+        if timeout is None:
+            timeout = self._worker_timeout
         # wait for all workers finishing init
         for (i, e) in enumerate(self._worker_ready_events):
             # todo: select all events with timeout
@@ -311,7 +314,7 @@ class Streamer(_BaseStreamer):
         for e in self._worker_destroy_events:
             e.set()
         for p in self._worker_ps:
-            p.join(timeout=WORKER_TIMEOUT)
+            p.join(timeout=self._worker_timeout)
             if p.is_alive():
                 raise TimeoutError("worker_process destroy timeout")
         logger.info("workers destroyed")
