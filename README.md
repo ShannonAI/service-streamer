@@ -375,8 +375,8 @@ example of using streamer to have result:
 ```python
 from service_streamer import RedisStreamer
 
-streamer_1 = RedisStreaemr(prefix='channel_1')
-streamer_2 = RedisStreaemr(prefix='channel_2')
+streamer_1 = RedisStreaemer(prefix='channel_1')
+streamer_2 = RedisStreaemer(prefix='channel_2')
 
 # predict
 output_1 = streamer_1.predict(batch)
