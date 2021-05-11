@@ -415,7 +415,6 @@ class RedisWorker(_BaseStreamWorker):
             handled = self._run_once()
             if self._destroy_event and self._destroy_event.is_set():
                 break
-            logger.debug('model is', self._model.model)
             if not handled and self._model.model is not None:
                 # sleep if no data handled last time
                 wait_round += 1
