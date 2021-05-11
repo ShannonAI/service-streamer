@@ -421,8 +421,7 @@ class RedisWorker(_BaseStreamWorker):
                 time.sleep(TIME_SLEEP)
                 if self._max_wait_round > 0 and wait_round % self._max_wait_round == 0:
                     logger.info("[gpu worker {}] {} reaches max wait round, will release model ", self._pid, self)
-                    self._predict_real = None
-                    del self._model
+                    self._model.release_model()
                     wait_round = 0
             else:
                 wait_round = 0
