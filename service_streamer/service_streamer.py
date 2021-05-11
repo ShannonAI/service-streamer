@@ -1,6 +1,5 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/13
-import logging
 import multiprocessing
 import os
 import threading
