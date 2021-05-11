@@ -107,7 +107,7 @@ class _BaseStreamer(object):
         return task_id
 
     def _loop_collect_result(self):
-        logger.info("start _loop_collect_result for client_id: %s", self._client_id)
+        logger.info("start _loop_collect_result for client_id: {}", self._client_id)
         while True:
             message = self._recv_response(timeout=TIMEOUT)
             if message:
@@ -151,7 +151,7 @@ class _BaseStreamWorker(object):
 
     def run_forever(self, *args, **kwargs):
         self._pid = os.getpid()  # overwrite the pid
-        logger.info("[gpu worker %d] %s start working" % (self._pid, self))
+        logger.info("[gpu worker {}] {} start working", self._pid, self)
 
         while True:
             handled = self._run_once()
@@ -160,7 +160,7 @@ class _BaseStreamWorker(object):
             if not handled:
                 # sleep if no data handled last time
                 time.sleep(TIME_SLEEP)
-        logger.info("[gpu worker %d] %s shutdown" % (self._pid, self))
+        logger.info("[gpu worker {}] {} shutdown", self._pid, self)
 
     def model_predict(self, batch_input):
         batch_result = self._predict(batch_input)
@@ -195,11 +195,11 @@ class _BaseStreamWorker(object):
             try:
                 self._send_response(client_id, task_id, request_id, model_outputs[i])
             except Exception as e:
-                logger.warning('_run_once: an exception occurs in _send_response, %s', str(e))
+                logger.warning('_run_once: an exception occurs in _send_response, {}', str(e))
 
         batch_size = len(batch)
-        logger.info("[gpu worker %d] run_once batch_size: %d start_at: %s spend: %s" % (
-            self._pid, batch_size, start_time, time.time() - start_time))
+        logger.info("[gpu worker {}] run_once batch_size: {} start_at: {} spend: {}",
+                    self._pid, batch_size, start_time, time.time() - start_time)
         return batch_size
 
     def _recv_request(self, timeout=TIMEOUT):
@@ -300,7 +300,7 @@ class Streamer(_BaseStreamer):
         for (i, e) in enumerate(self._worker_ready_events):
             # todo: select all events with timeout
             is_ready = e.wait(timeout)
-            logger.info("gpu worker:%d ready state: %s" % (i, is_ready))
+            logger.info("gpu worker:{} ready state: {}", i, is_ready)
 
     def _send_request(self, task_id, request_id, model_input):
         self._input_queue.put((0, task_id, request_id, model_input))
@@ -335,10 +335,10 @@ class StreamWorker(_BaseStreamWorker):
         # if it is a managed model, lazy init model after forked & set CUDA_VISIBLE_DEVICES
         if isinstance(self._predict, type) and issubclass(self._predict, ManagedModel):
             model_class = self._predict
-            logger.info("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
+            logger.info("[gpu worker {}] init model on gpu:{}", os.getpid(), gpu_id)
             self._model = model_class(gpu_id)
             self._model.init_model(*self._model_init_args, **self._model_init_kwargs)
-            logger.info("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
+            logger.info("[gpu worker {}] init model on gpu:{}", os.getpid(), gpu_id)
             self._predict = self._model.predict
             if ready_event:
                 ready_event.set()  # tell father process that init is finished
@@ -380,7 +380,7 @@ class RedisStreamer(_BaseStreamer):
         try:
             message = self._redis.recv_response(timeout)
         except Exception as e:
-            logger.warning('_recv_response: an exception occurs in recv_response, %s', str(e))
+            logger.warning('_recv_response: an exception occurs in recv_response, {}', str(e))
             message = None
         return message
 
@@ -404,12 +404,12 @@ class RedisWorker(_BaseStreamWorker):
         self.back_thread.start()
 
     def run_forever(self, gpu_id=None):
-        logger.info("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
+        self._pid = os.getpid()  # overwrite the pid
+        logger.info("[gpu worker {}] init model on gpu:{}", self._pid, gpu_id)
         self.gpu_id = gpu_id
         self._prepare_predict()
 
-        self._pid = os.getpid()  # overwrite the pid
-        logger.info("[gpu worker %d] %s start working" % (self._pid, self))
+        logger.info("[gpu worker {}] {} start working", self._pid, self)
         wait_round = 0
         while True:
             handled = self._run_once()
@@ -422,11 +422,11 @@ class RedisWorker(_BaseStreamWorker):
                 if self._max_wait_round > 0 and wait_round % self._max_wait_round == 0:
                     logger.info("[gpu worker {}] {} reaches max wait round, will release model ", self._pid, self)
                     self._predict_real = None
-                    self._model = None
+                    del self._model
                     wait_round = 0
             else:
                 wait_round = 0
-        logger.info("[gpu worker %d] %s shutdown" % (self._pid, self))
+        logger.info("[gpu worker {}] {} shutdown", self._pid, self)
 
     def model_predict(self, batch_input):
         if self._predict_real is None:
@@ -447,7 +447,7 @@ class RedisWorker(_BaseStreamWorker):
         self._predict_real = self._model.predict
 
     def _loop_recv_request(self):
-        logger.info("[gpu worker %d] start loop_recv_request" % (os.getpid()))
+        logger.info("[gpu worker {}] start loop_recv_request", os.getpid())
         while True:
             message = self._redis.recv_request(timeout=TIMEOUT)
             if message:
@@ -531,7 +531,7 @@ class _RedisClient(_RedisAgent):
             if message:
                 return pickle.loads(message["data"])
         except RedisError as e:
-            logger.warning('recv_response: redis error occurs in get_message, %s', str(e))
+            logger.warning('recv_response: redis error occurs in get_message, {}', str(e))
             self._setup()  # 重新订阅
 
 
@@ -548,7 +548,7 @@ class _RedisServer(_RedisAgent):
             if message:
                 return message[1]
         except RedisError as e:
-            logger.warning('recv_request: redis error occurs in blpop, %s', str(e))
+            logger.warning('recv_request: redis error occurs in blpop, {}', str(e))
             return None
 
     def send_response(self, client_id, task_id, request_id, model_output):
