@@ -1,6 +1,5 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/13
-import logging
 import multiprocessing
 import os
 import threading
@@ -11,15 +10,15 @@ import pickle
 from queue import Queue, Empty
 from typing import List
 
-from redis import Redis
+from redis import Redis, RedisError
+from loguru import logger
 
 from .managed_model import ManagedModel
 
 TIMEOUT = 1
 TIME_SLEEP = 0.001
 WORKER_TIMEOUT = 20
-logger = logging.getLogger(__name__)
-logger.setLevel("INFO")
+HEALTH_CHECK_TIMEOUT = 30
 
 
 class Future(object):
@@ -109,7 +108,7 @@ class _BaseStreamer(object):
         return task_id
 
     def _loop_collect_result(self):
-        logger.info("start _loop_collect_result")
+        logger.info("start _loop_collect_result for client_id: {}", self._client_id)
         while True:
             message = self._recv_response(timeout=TIMEOUT)
             if message:
@@ -133,7 +132,8 @@ class _BaseStreamer(object):
     def predict(self, batch):
         task_id = self._input(batch)
         ret = self._output(task_id)
-        assert len(batch) == len(ret), "input batch size {} and output batch size {} must be equal.".format(len(batch), len(ret))
+        assert len(batch) == len(ret), "input batch size {} and output batch size {} must be equal.".format(
+            len(batch), len(ret))
         return ret
 
     def destroy_workers(self):
@@ -152,7 +152,7 @@ class _BaseStreamWorker(object):
 
     def run_forever(self, *args, **kwargs):
         self._pid = os.getpid()  # overwrite the pid
-        logger.info("[gpu worker %d] %s start working" % (self._pid, self))
+        logger.info("[gpu worker {}] {} start working", self._pid, self)
 
         while True:
             handled = self._run_once()
@@ -161,11 +161,13 @@ class _BaseStreamWorker(object):
             if not handled:
                 # sleep if no data handled last time
                 time.sleep(TIME_SLEEP)
-        logger.info("[gpu worker %d] %s shutdown" % (self._pid, self))
+        logger.info("[gpu worker {}] {} shutdown", self._pid, self)
 
     def model_predict(self, batch_input):
         batch_result = self._predict(batch_input)
-        assert len(batch_input) == len(batch_result), "input batch size {} and output batch size {} must be equal.".format(len(batch_input), len(batch_result))
+        assert len(batch_input) == len(
+            batch_result), "input batch size {} and output batch size {} must be equal.".format(
+            len(batch_input), len(batch_result))
         return batch_result
 
     def _run_once(self):
@@ -191,11 +193,14 @@ class _BaseStreamWorker(object):
         # publish results to redis
         for i, item in enumerate(batch):
             client_id, task_id, request_id, _ = item
-            self._send_response(client_id, task_id, request_id, model_outputs[i])
+            try:
+                self._send_response(client_id, task_id, request_id, model_outputs[i])
+            except Exception as e:
+                logger.warning('_run_once: an exception occurs in _send_response, {}', str(e))
 
         batch_size = len(batch)
-        logger.info("[gpu worker %d] run_once batch_size: %d start_at: %s spend: %s" % (
-            self._pid, batch_size, start_time, time.time() - start_time))
+        logger.info("[gpu worker {}] run_once batch_size: {} start_at: {} spend: {}",
+                    self._pid, batch_size, start_time, time.time() - start_time)
         return batch_size
 
     def _recv_request(self, timeout=TIMEOUT):
@@ -210,7 +215,7 @@ class ThreadedStreamer(_BaseStreamer):
         super().__init__(worker_timeout=worker_timeout)
         self._input_queue = Queue()
         self._output_queue = Queue()
-        self._worker_destroy_event=threading.Event()
+        self._worker_destroy_event = threading.Event()
         self._worker = ThreadedWorker(predict_function, batch_size, max_latency,
                                       self._input_queue, self._output_queue,
                                       destroy_event=self._worker_destroy_event)
@@ -298,7 +303,7 @@ class Streamer(_BaseStreamer):
         for (i, e) in enumerate(self._worker_ready_events):
             # todo: select all events with timeout
             is_ready = e.wait(timeout)
-            logger.info("gpu worker:%d ready state: %s" % (i, is_ready))
+            logger.info("gpu worker:{} ready state: {}", i, is_ready)
 
     def _send_request(self, task_id, request_id, model_input):
         self._input_queue.put((0, task_id, request_id, model_input))
@@ -333,10 +338,10 @@ class StreamWorker(_BaseStreamWorker):
         # if it is a managed model, lazy init model after forked & set CUDA_VISIBLE_DEVICES
         if isinstance(self._predict, type) and issubclass(self._predict, ManagedModel):
             model_class = self._predict
-            logger.info("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
+            logger.info("[gpu worker {}] init model on gpu:{}", os.getpid(), gpu_id)
             self._model = model_class(gpu_id)
             self._model.init_model(*self._model_init_args, **self._model_init_kwargs)
-            logger.info("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
+            logger.info("[gpu worker {}] init model on gpu:{}", os.getpid(), gpu_id)
             self._predict = self._model.predict
             if ready_event:
                 ready_event.set()  # tell father process that init is finished
@@ -375,12 +380,17 @@ class RedisStreamer(_BaseStreamer):
         self._redis.send_request(task_id, request_id, model_input)
 
     def _recv_response(self, timeout=TIMEOUT):
-        return self._redis.recv_response(timeout)
+        try:
+            message = self._redis.recv_response(timeout)
+        except Exception as e:
+            logger.warning('_recv_response: an exception occurs in recv_response, {}', str(e))
+            message = None
+        return message
 
 
 class RedisWorker(_BaseStreamWorker):
     def __init__(self, model_class, batch_size, max_latency=0.1,
-                 redis_broker="localhost:6379", prefix='',
+                 redis_broker="localhost:6379", prefix='', max_wait_time=0,
                  model_init_args=None, model_init_kwargs=None, *args, **kwargs):
         # assert issubclass(model_class, ManagedModel)
         super().__init__(model_class, batch_size, max_latency, *args, **kwargs)
@@ -391,22 +401,55 @@ class RedisWorker(_BaseStreamWorker):
         self._redis_broker = redis_broker
         self._redis = _RedisServer(0, self._redis_broker, self.prefix)
         self._requests_queue = Queue()
-
+        self._max_wait_round = max_wait_time // max_latency
         self.back_thread = threading.Thread(target=self._loop_recv_request, name="thread_recv_request")
         self.back_thread.daemon = True
         self.back_thread.start()
 
     def run_forever(self, gpu_id=None):
-        logger.info("[gpu worker %d] init model on gpu:%s" % (os.getpid(), gpu_id))
-        model_class = self._predict
-        self._model = model_class(gpu_id)
-        self._model.init_model(*self._model_init_args, **self._model_init_kwargs)
-        self._predict = self._model.predict
+        self._pid = os.getpid()  # overwrite the pid
+        logger.info("[gpu worker {}] init model on gpu:{}", self._pid, gpu_id)
+        self.gpu_id = gpu_id
+        self._prepare_predict()
 
-        super().run_forever()
+        logger.info("[gpu worker {}] {} start working", self._pid, self)
+        wait_round = 0
+        while True:
+            handled = self._run_once()
+            if self._destroy_event and self._destroy_event.is_set():
+                break
+            if not handled and self._model.model is not None:
+                # sleep if no data handled last time
+                wait_round += 1
+                time.sleep(TIME_SLEEP)
+                if self._max_wait_round > 0 and wait_round % self._max_wait_round == 0:
+                    logger.info("[gpu worker {}] {} reaches max wait round, will release model ", self._pid, self)
+                    self._model.release_model()
+                    wait_round = 0
+            else:
+                wait_round = 0
+        logger.info("[gpu worker {}] {} shutdown", self._pid, self)
+
+    def model_predict(self, batch_input):
+        if self._model.model is None:
+            logger.debug('[gpu worker {}] {} start to load model', self._pid, self)
+            self._prepare_predict()
+
+        batch_result = self._predict_real(batch_input)
+        assert len(batch_input) == len(
+            batch_result), "input batch size {} and output batch size {} must be equal.".format(len(batch_input),
+                                                                                                len(batch_result))
+        return batch_result
+
+    def _prepare_predict(self):
+        self._model = self._predict(self.gpu_id)
+        timer = time.time()
+        self._model.init_model(*self._model_init_args, **self._model_init_kwargs)
+        logger.debug(f'[gpu worker {self._pid}] {self} load model successfully, cost time {time.time() - timer:.2f}')
+        self._predict_real = self._model.predict
 
     def _loop_recv_request(self):
-        logger.info("[gpu worker %d] start loop_recv_request" % (os.getpid()))
+        logger.info("[gpu worker {}] start loop_recv_request", os.getpid())
         while True:
             message = self._redis.recv_request(timeout=TIMEOUT)
             if message:
@@ -429,15 +472,18 @@ class RedisWorker(_BaseStreamWorker):
 
 
 def _setup_redis_worker_and_runforever(model_class, batch_size, max_latency, gpu_id,
-                                       redis_broker, prefix='', model_init_args=None, model_init_kwargs=None):
+                                       redis_broker, prefix='', max_wait_time=0, model_init_args=None,
+                                       model_init_kwargs=None):
     redis_worker = RedisWorker(model_class, batch_size, max_latency, redis_broker=redis_broker, prefix=prefix,
+                               max_wait_time=max_wait_time,
                                model_init_args=model_init_args, model_init_kwargs=model_init_kwargs)
     redis_worker.run_forever(gpu_id)
 
 
 def run_redis_workers_forever(model_class, batch_size, max_latency=0.1,
                               worker_num=1, cuda_devices=None, redis_broker="localhost:6379",
-                              prefix='', mp_start_method='spawn', model_init_args=None, model_init_kwargs=None):
+                              prefix='', max_wait_time=0, mp_start_method='spawn', model_init_args=None,
+                              model_init_kwargs=None):
     procs = []
     mp = multiprocessing.get_context(mp_start_method)
     for i in range(worker_num):
@@ -445,7 +491,8 @@ def run_redis_workers_forever(model_class, batch_size, max_latency=0.1,
             gpu_id = cuda_devices[i % len(cuda_devices)]
         else:
             gpu_id = None
-        args = [model_class, batch_size, max_latency, gpu_id, redis_broker, prefix, model_init_args, model_init_kwargs]
+        args = [model_class, batch_size, max_latency, gpu_id, redis_broker, prefix, max_wait_time, model_init_args,
+                model_init_kwargs]
         p = mp.Process(target=_setup_redis_worker_and_runforever, args=args, name="stream_worker", daemon=True)
         p.start()
         procs.append(p)
@@ -459,9 +506,9 @@ class _RedisAgent(object):
         self._redis_id = redis_id
         self._redis_host = redis_broker.split(":")[0]
         self._redis_port = int(redis_broker.split(":")[1])
-        self._redis_request_queue_name = "request_queue" +  prefix
-        self._redis_response_pb_prefix = "response_pb_"  + prefix
-        self._redis = Redis(host=self._redis_host, port=self._redis_port)
+        self._redis_request_queue_name = "request_queue" + prefix
+        self._redis_response_pb_prefix = "response_pb_" + prefix
+        self._redis = Redis(host=self._redis_host, port=self._redis_port, health_check_interval=HEALTH_CHECK_TIMEOUT)
         self._response_pb = self._redis.pubsub(ignore_subscribe_messages=True)
         self._setup()
 
@@ -481,21 +528,30 @@ class _RedisClient(_RedisAgent):
         self._redis.lpush(self._redis_request_queue_name, pickle.dumps(message))
 
     def recv_response(self, timeout):
-        message = self._response_pb.get_message(timeout=timeout)
-        if message:
-            return pickle.loads(message["data"])
+        try:
+            message = self._response_pb.get_message(timeout=timeout)
+            if message:
+                return pickle.loads(message["data"])
+        except RedisError as e:
+            logger.warning('recv_response: redis error occurs in get_message, {}', str(e))
+            self._setup()  # 重新订阅
 
 
 class _RedisServer(_RedisAgent):
     def _setup(self):
-        # server subscribe all pubsub
-        self._response_pb.psubscribe(self._redis_response_pb_prefix + "*")
+        # no need, if subscribe all response_pb_* and not read,
+        # redis will report error that client is scheduled to be closed ASAP for overcoming of output buffer limits
+        pass
 
     def recv_request(self, timeout):
-        message = self._redis.blpop(self._redis_request_queue_name, timeout=timeout)
-        # (queue_name, data)
-        if message:
-            return message[1]
+        try:
+            message = self._redis.blpop(self._redis_request_queue_name, timeout=timeout)
+            # (queue_name, data)
+            if message:
+                return message[1]
+        except RedisError as e:
+            logger.warning('recv_request: redis error occurs in blpop, {}', str(e))
+            return None
 
     def send_response(self, client_id, task_id, request_id, model_output):
         message = (task_id, request_id, model_output)

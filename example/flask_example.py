@@ -1,7 +1,7 @@
 # coding=utf-8
 # Created by Meteorix at 2019/7/30
 
-from bert_model import TextInfillingModel as Model
+from example.bert_model import TextInfillingModel as Model
 from flask import Flask, request, jsonify
 
 from service_streamer import ThreadedStreamer
@@ -13,14 +13,14 @@ streamer = None
 
 @app.route("/naive", methods=["POST"])
 def naive_predict():
-    inputs = request.form.getlist("s")
+    inputs = request.json.get('inputs', [])
     outputs = model.predict(inputs)
     return jsonify(outputs)
 
 
 @app.route("/stream", methods=["POST"])
 def stream_predict():
-    inputs = request.form.getlist("s")
+    inputs = request.json.get('inputs', [])
     outputs = streamer.predict(inputs)
     return jsonify(outputs)
 
